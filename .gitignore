@@ -1,35 +1,42 @@
-.DS_Store
 .venv/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .ruff_cache/
-coverage.xml
-htmlcov/
-.env
-.env.*
+*.egg-info/
+build/
+dist/
+.DS_Store
 
-# Local media and generated outputs
+# User/reference media and generated outputs
 media/
-recordings/
-outputs/
 references/
+outputs/
+takes/
+*.cpc
+*.cpc.partial
 *.mp4
 *.mov
 *.mkv
 *.avi
 *.webm
-*.wav
 *.png
 *.jpg
 *.jpeg
+*.webp
 
-# Model weights and caches
+# Model weights/assets
 models/
-weights/
 *.onnx
 *.pth
 *.pt
 *.ckpt
 *.safetensors
-.cache/
+*.task
+*.tflite
+
+# Secrets and local config
+.env
+.env.*
+*.key
+*.pem
