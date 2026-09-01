@@ -7,11 +7,11 @@
   "project_name": "Character Performance Capture",
   "project_root": "westkitty/character-performance-capture",
   "artifact_path": null,
-  "state_revision": 1,
+  "state_revision": 2,
   "last_updated": "2026-09-01",
   "current_baseline": {
-    "identity": "initial-empty-repository",
-    "state": "current-baseline",
+    "identity": "fe1675dd18b1165a013e1b76fb330d3a2edeec4a",
+    "state": "implemented-unverified",
     "last_verified": null
   },
   "scope_boundaries": [
@@ -34,16 +34,16 @@
 
 ## 2. Current Baseline
 
-- **Primary artifact:** `initial-empty-repository`
-- **Baseline state:** `current-baseline`
-- **Source/build/install identity:** Repository existed but contained no files before this state file.
-- **Active default user route:** Not yet implemented.
-- **Delivery state:** GitHub repository is writable; runtime is not yet implemented.
-- **Last verified baseline:** Repository metadata inspected 2026-09-01; runtime validation not yet possible.
+- **Primary artifact:** commit `fe1675dd18b1165a013e1b76fb330d3a2edeec4a`
+- **Baseline state:** `implemented-unverified`
+- **Source/build/install identity:** Python package scaffold with OpenCV webcam source, model-agnostic pipeline, passthrough renderer, telemetry overlay, CLI preview, unit tests, CI definition, and architecture documentation.
+- **Active default user route:** Intended route is `cpc --camera 0`; not yet runtime-verified on target hardware.
+- **Delivery state:** Source is committed to GitHub.
+- **Last verified baseline:** No runtime baseline yet.
 
 ## 3. Artifact Contract
 
-The project will be a clean-room implementation with a testable headless core. The initial runnable route is webcam -> tracking seam -> rendering seam -> preview and optional virtual-camera output. Model-specific code must remain behind adapters. No user media or heavyweight model weights are committed to Git.
+The project is a clean-room implementation with a testable headless core. The initial runnable route is webcam -> processing seam -> renderer seam -> preview. Model-specific code remains behind adapters. No user media or heavyweight model weights are committed to Git.
 
 ## 4. Active Invariants
 
@@ -57,28 +57,35 @@ The project will be a clean-room implementation with a testable headless core. T
 
 ## 5. Verified Working Behavior
 
-None yet.
+None yet. Source presence is not runtime verification.
 
 ## 6. Known Not Working
 
-None confirmed yet; the repository has not had a runnable implementation.
+None confirmed yet.
 
 ## 7. Implemented but Unverified
 
-- **UNV-001:** Operational-state control plane initialized in the target repository.
+- **UNV-001:** OpenCV `CameraSource` with explicit open/read/close lifecycle.
+- **UNV-002:** Model-agnostic `Pipeline` with ordered processor startup, frame processing, reverse-order teardown, and frame metrics.
+- **UNV-003:** Passthrough renderer plus FPS/processing-latency telemetry overlay.
+- **UNV-004:** CLI preview route via `cpc --camera 0`, with optional mirror/size/FPS arguments.
+- **UNV-005:** Unit tests cover passthrough values, idempotent lifecycle, and processor ordering.
+- **UNV-006:** GitHub Actions workflow defines Ruff and pytest checks.
+- **UNV-007:** Git exclusions cover user media, generated outputs, caches, and common model-weight formats.
 
 ## 8. Unknown or Evidence-Stale State
 
 - **UNK-001:** Actual webcam throughput on the M1 MacBook Air is unknown.
 - **UNK-002:** Actual webcam/render throughput on the M4 Big Mac is unknown.
 - **UNK-003:** OBS virtual-camera availability and latency on the target Macs are unknown.
-- **UNK-004:** Best production renderer is not yet frozen; LivePortrait is a candidate only after replacing its InsightFace detection dependency for a commercial path.
+- **UNK-004:** Best production renderer is not frozen. LivePortrait is a candidate only after replacing its InsightFace detection dependency for a commercial path.
+- **UNK-005:** CI completion state is not visible through the available connector evidence yet.
 
 ## 9. Pending Work
 
-- **PND-001:** Build a minimal camera/preview pipeline with clean tracking and rendering interfaces.
-- **PND-002:** Add optional virtual-camera output suitable for OBS.
-- **PND-003:** Add a real performance tracker and record/replay format.
+- **PND-001:** Run the foundation on target Apple Silicon and record baseline FPS/latency.
+- **PND-002:** Add a real performance-tracker interface plus serializable capture/replay state.
+- **PND-003:** Add optional virtual-camera output suitable for OBS.
 - **PND-004:** Prototype a character renderer without importing restricted model licensing into the core.
 - **PND-005:** Benchmark M1 and M4 Apple Silicon paths before choosing a live renderer.
 
@@ -89,29 +96,39 @@ None confirmed yet; the repository has not had a runnable implementation.
 - **DEC-003:** Start with a model-agnostic runnable core; do not make InsightFace/Inswapper a required dependency.
 - **DEC-004:** Prefer a small Python headless core before committing to a desktop UI framework.
 - **DEC-005:** Keep this project distinct from Big Mac FaceTools/FaceFusion.
+- **DEC-006:** Add performance capture/replay before selecting a generative renderer, so performer data is not welded to one model.
 
 ## 11. Validation and Evidence Matrix
 
 | ID | Claim or behavior | State | Evidence | Validation method | Artifact/revision | Last checked | Recheck trigger |
 |---|---|---|---|---|---|---|---|
-| INV-001 | Clean-room boundary | requested | User continuation plus repository initialization decision | Review committed dependencies/source provenance | rev 1 | 2026-09-01 | Any external-code import |
-| INV-002 | Local-first core | requested | Architecture decision | Network-free runtime test | rev 1 | 2026-09-01 | First model integration |
-| UNV-001 | State file exists | implemented-unverified | GitHub write | Fetch committed file | rev 1 | 2026-09-01 | State update |
+| INV-001 | Clean-room boundary | implemented-unverified | Independently authored project files; prior-art docs contain concepts only | Dependency/source provenance review | rev 2 | 2026-09-01 | Any external-code import |
+| INV-002 | Local-first core | implemented-unverified | Current dependencies are NumPy/OpenCV only | Network-free target runtime test | rev 2 | 2026-09-01 | First model integration |
+| UNV-002 | Pipeline lifecycle | implemented-unverified | Source plus unit-test definitions committed | CI/local pytest | rev 2 | 2026-09-01 | Pipeline change |
+| UNV-004 | Webcam preview | implemented-unverified | CLI source committed | Launch on target Mac with webcam | rev 2 | 2026-09-01 | Capture/UI change |
+| UNV-006 | CI workflow | implemented-unverified | Workflow file committed | Observe successful Actions run | rev 2 | 2026-09-01 | Workflow/dependency change |
 
 ## 12. Current Change Scope and Impact Radius
 
-- **Allowed to change:** Initialize repository structure, runnable capture core, tests, architecture/recon documentation, Git hygiene, and optional virtual-camera seam.
+- **Allowed to change:** Foundation capture pipeline, tests, architecture documentation, Git hygiene, future tracker/replay seam, and optional virtual-camera seam.
 - **Must remain unchanged:** Clean-room, local-first, license, media-exclusion, and pluggable-pipeline invariants.
-- **Potentially affected behavior:** Entire project; no prior runtime behavior exists.
-- **Mandatory checks:** Python syntax/import checks where executable runtime is available; unit tests for pure frame/pipeline logic; source/dependency review for clean-room compliance.
+- **Potentially affected behavior:** Foundation package and future extension interfaces.
+- **Mandatory checks:** Ruff, pytest, import/launch check, webcam preview on target Mac, latency/FPS baseline before model integration.
 - **Checks deliberately reused:** None.
 - **Repair class:** Greenfield foundation.
 
 ## 13. Compact Revision Log
+
+### Revision 2 — 2026-09-01
+
+- **Artifact/source identity:** commit `fe1675dd18b1165a013e1b76fb330d3a2edeec4a`
+- **State deltas:** Foundation source, tests, CI, and architecture decisions committed.
+- **New evidence:** GitHub accepted all foundation files; repository is no longer empty.
+- **Validation not performed:** CI result, webcam runtime, OBS virtual camera, model inference, and target-Mac throughput remain unverified.
 
 ### Revision 1 — 2026-09-01
 
 - **Artifact/source identity:** `initial-empty-repository`
 - **State deltas:** Initialized operational state and project invariants before implementation.
 - **New evidence:** Target repository confirmed writable and empty before initialization.
-- **Validation not performed:** Webcam, virtual camera, model inference, and target-Mac runtime validation remain pending.
+- **Validation not performed:** All runtime behavior remained pending.
