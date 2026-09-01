@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from datetime import datetime, timezone
 import json
 import os
-from pathlib import Path
 import time
-from typing import Any, Iterator
+from collections.abc import Iterator
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from pathlib import Path
+from typing import Any, Self
 
 from .performance import JsonScalar, PerformanceFrame
 
@@ -77,7 +78,7 @@ class PerformanceRecorder:
                 "version": FORMAT_VERSION,
                 "tracker": self.tracker,
                 "profile": self.profile,
-                "started_at_utc": datetime.now(timezone.utc).isoformat(),
+                "started_at_utc": datetime.now(UTC).isoformat(),
                 "metadata": self.metadata,
             }
         )
@@ -127,7 +128,7 @@ class PerformanceRecorder:
         self._file.write(json.dumps(payload, separators=(",", ":"), allow_nan=False))
         self._file.write("\n")
 
-    def __enter__(self) -> "PerformanceRecorder":
+    def __enter__(self) -> Self:
         self.start()
         return self
 

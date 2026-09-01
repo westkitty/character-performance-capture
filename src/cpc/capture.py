@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Self
 
 import cv2
 import numpy as np
@@ -54,7 +55,7 @@ class CameraSource:
             self._capture.release()
             self._capture = None
 
-    def __enter__(self) -> "CameraSource":
+    def __enter__(self) -> Self:
         self.open()
         return self
 

@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-from typing import Protocol
 import time
+from dataclasses import dataclass
+from typing import Protocol, Self
 
 import numpy as np
 
@@ -77,7 +77,7 @@ class Pipeline:
             processor.close()
         self._started = False
 
-    def __enter__(self) -> "Pipeline":
+    def __enter__(self) -> Self:
         self.start()
         return self
 

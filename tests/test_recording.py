@@ -37,10 +37,12 @@ def test_capture_round_trip_and_replay(tmp_path: Path):
 def test_exception_preserves_recoverable_partial_capture(tmp_path: Path):
     path = tmp_path / "interrupted.cpc"
 
-    with pytest.raises(RuntimeError, match="boom"):
-        with PerformanceRecorder(path, tracker="fake", profile="test") as recorder:
-            recorder.write(make_frame(0, 0.0))
-            raise RuntimeError("boom")
+    with (
+        pytest.raises(RuntimeError, match="boom"),
+        PerformanceRecorder(path, tracker="fake", profile="test") as recorder,
+    ):
+        recorder.write(make_frame(0, 0.0))
+        raise RuntimeError("boom")
 
     partial = Path(f"{path}.partial")
     assert not path.exists()

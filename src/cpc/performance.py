@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json
 import math
+from dataclasses import dataclass, field
 from typing import Any
 
 
@@ -56,7 +56,7 @@ class Landmark:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "Landmark":
+    def from_dict(cls, payload: dict[str, Any]) -> Landmark:
         return cls(
             x=payload["x"],
             y=payload["y"],
@@ -148,7 +148,7 @@ class PerformanceFrame:
         }
 
     @classmethod
-    def from_dict(cls, payload: dict[str, Any]) -> "PerformanceFrame":
+    def from_dict(cls, payload: dict[str, Any]) -> PerformanceFrame:
         return cls(
             frame_index=int(payload["frame_index"]),
             timestamp_s=float(payload["timestamp_s"]),

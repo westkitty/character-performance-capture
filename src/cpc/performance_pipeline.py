@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 import time
-from typing import Protocol
+from dataclasses import dataclass
+from typing import Protocol, Self
 
 from .performance import PerformanceFrame
 from .pipeline import Frame, FrameMetrics
@@ -106,7 +106,7 @@ class PerformancePipeline:
             self.tracker.close()
             self._started = False
 
-    def __enter__(self) -> "PerformancePipeline":
+    def __enter__(self) -> Self:
         self.start()
         return self
 

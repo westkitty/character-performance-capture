@@ -79,7 +79,7 @@ class MediaPipeFaceTracker:
         rgb = np.ascontiguousarray(rgb)
         mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
 
-        timestamp_ms = int(round(timestamp_s * 1000.0))
+        timestamp_ms = round(timestamp_s * 1000.0)
         if timestamp_ms <= self._last_timestamp_ms:
             timestamp_ms = self._last_timestamp_ms + 1
         self._last_timestamp_ms = timestamp_ms
