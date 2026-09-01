@@ -7,10 +7,10 @@
   "project_name": "Character Performance Capture",
   "project_root": "westkitty/character-performance-capture",
   "artifact_path": null,
-  "state_revision": 3,
+  "state_revision": 4,
   "last_updated": "2026-09-01",
   "current_baseline": {
-    "identity": "2444f60b133ba151bddbf2bfc89fc508593c5e88",
+    "identity": "1bc4db3cce45697b88a11ac2462293473de0f256",
     "state": "partially-verified",
     "last_verified": "2026-09-01"
   },
@@ -34,12 +34,12 @@
 
 ## 2. Current Baseline
 
-- **Primary artifact:** code commit `2444f60b133ba151bddbf2bfc89fc508593c5e88`
+- **Primary artifact:** code commit `1bc4db3cce45697b88a11ac2462293473de0f256`
 - **Baseline state:** `partially-verified`
 - **Source/build/install identity:** CPC v0.2.0 with portable `PerformanceFrame`, tracker/renderer pipeline, crash-tolerant `.cpc` recording/replay, optional MediaPipe Face Landmarker adapter, CLI recording/inspection, and expanded tests.
 - **Active default user route:** `cpc --camera 0` remains the intended zero-model preview route; not yet runtime-verified on target Mac hardware.
-- **Delivery state:** v0.2 source is committed to `main`.
-- **Last verified baseline:** Pure-Python/data-path tests passed in the ChatGPT execution container on 2026-09-01; webcam/model/OBS paths remain unverified.
+- **Delivery state:** v0.2 source and CI lint repairs are committed to `main`.
+- **Last verified baseline:** GitHub Actions run 33556559459 succeeded on 2026-09-01 after install, Ruff, and pytest all passed. Local container tests previously produced 11 passing tests and a successful `compileall` pass.
 
 ## 3. Artifact Contract
 
@@ -61,7 +61,8 @@ The project is a clean-room implementation with a testable headless core. The pr
 - **VER-001:** `PerformanceFrame` serialization round-trips named blendshapes, landmarks, gaze/head fields, transforms, tracker/profile identity, and metadata while rejecting invalid normalized coefficients and malformed transforms.
 - **VER-002:** `PerformancePipeline` passes tracker state into the renderer and enforces tracker-start -> renderer-start -> track -> render -> renderer-close -> tracker-close lifecycle ordering in the tested path.
 - **VER-003:** `PerformanceRecorder` writes finalized `.cpc` captures without overwriting an existing capture, `PerformanceReplay` reproduces recorded frames, and interrupted recording leaves a readable `.cpc.partial` instead of replacing the intended final file.
-- **VER-004:** The complete repository test set used for v0.2 passed locally: 11 tests, 0 failures. `python3 -m compileall -q src tests` also passed.
+- **VER-004:** The repository's v0.2 pure-data/lifecycle suite passed locally: 11 tests, 0 failures. `python3 -m compileall -q src tests` also passed.
+- **VER-005:** GitHub Actions run `33556559459` for commit `1bc4db3cce45697b88a11ac2462293473de0f256` completed successfully: dependency installation passed, `ruff check src tests` passed, and `pytest` passed under Python 3.11 on Ubuntu.
 
 ## 6. Known Not Working
 
@@ -75,7 +76,6 @@ None confirmed on target hardware yet. Absence of target-hardware failures is no
 - **UNV-004:** CLI preview route via `cpc --camera 0`, with optional mirror/size/FPS arguments.
 - **UNV-005:** Optional MediaPipe Face Landmarker adapter using a caller-supplied local model asset; no model is bundled or auto-downloaded.
 - **UNV-006:** Live `--record-performance` path combining webcam capture, tracker, renderer, and recorder.
-- **UNV-007:** GitHub Actions workflow defines Ruff and pytest checks, but no completed run for the v0.2 code commit was observable through the connector during this pass.
 
 ## 8. Unknown or Evidence-Stale State
 
@@ -84,7 +84,6 @@ None confirmed on target hardware yet. Absence of target-hardware failures is no
 - **UNK-003:** OBS virtual-camera availability and latency on the target Macs are unknown.
 - **UNK-004:** Best production renderer is not frozen. LivePortrait remains only a candidate pending dependency/model-license replacement and benchmark evidence.
 - **UNK-005:** Actual MediaPipe Face Landmarker model inference with a chosen `.task` asset has not been run in this project.
-- **UNK-006:** Ruff result for v0.2 is unknown in the local execution environment because Ruff was not installed there.
 
 ## 9. Pending Work
 
@@ -110,39 +109,46 @@ None confirmed on target hardware yet. Absence of target-hardware failures is no
 
 | ID | Claim or behavior | State | Evidence | Validation method | Artifact/revision | Last checked | Recheck trigger |
 |---|---|---|---|---|---|---|---|
-| INV-001 | Clean-room boundary | partially-verified | Independently authored source and isolated optional adapter | Source/dependency provenance review | rev 3 | 2026-09-01 | Any external-code import |
-| INV-002 | Local-first core | partially-verified | Core and recorder perform local file/memory operations only | Target network-free runtime test | rev 3 | 2026-09-01 | First real model/render integration |
-| VER-001 | Performance schema round-trip | verified | Local pytest | `tests/test_performance.py` | v0.2 / rev 3 | 2026-09-01 | Schema change |
-| VER-002 | Tracker -> renderer lifecycle | verified | Local pytest | `tests/test_performance_pipeline.py` | v0.2 / rev 3 | 2026-09-01 | Pipeline change |
-| VER-003 | Record/replay + partial recovery | verified | Local pytest | `tests/test_recording.py` | v0.2 / rev 3 | 2026-09-01 | Capture-format change |
-| VER-004 | Test suite / compile | verified | Container: 11 passed; compileall passed | `pytest`; `compileall` | v0.2 / rev 3 | 2026-09-01 | Source/test change |
-| UNV-004 | Webcam preview | implemented-unverified | Source committed | Launch on target Mac with webcam | v0.2 / rev 3 | 2026-09-01 | Capture/UI change |
-| UNV-005 | MediaPipe tracking | implemented-unverified | Adapter source committed; missing-model failure test passed | Real model + webcam test | v0.2 / rev 3 | 2026-09-01 | Adapter/model change |
-| UNV-007 | CI workflow | implemented-unverified | Workflow exists; no run observed for code commit | Observe successful Actions run | v0.2 / rev 3 | 2026-09-01 | Workflow/dependency change |
+| INV-001 | Clean-room boundary | partially-verified | Independently authored source and isolated optional adapter | Source/dependency provenance review | rev 4 | 2026-09-01 | Any external-code import |
+| INV-002 | Local-first core | partially-verified | Core and recorder perform local file/memory operations only | Target network-free runtime test | rev 4 | 2026-09-01 | First real model/render integration |
+| VER-001 | Performance schema round-trip | verified | Local pytest + green repository CI | `tests/test_performance.py` | v0.2 / rev 4 | 2026-09-01 | Schema change |
+| VER-002 | Tracker -> renderer lifecycle | verified | Local pytest + green repository CI | `tests/test_performance_pipeline.py` | v0.2 / rev 4 | 2026-09-01 | Pipeline change |
+| VER-003 | Record/replay + partial recovery | verified | Local pytest + green repository CI | `tests/test_recording.py` | v0.2 / rev 4 | 2026-09-01 | Capture-format change |
+| VER-004 | Local test suite / compile | verified | Container: 11 passed; compileall passed | `pytest`; `compileall` | v0.2 / rev 4 | 2026-09-01 | Source/test change |
+| VER-005 | Repository CI | verified | Actions run 33556559459: install/Ruff/pytest passed | GitHub Actions | commit 1bc4db3 / rev 4 | 2026-09-01 | Source/workflow/dependency change |
+| UNV-004 | Webcam preview | implemented-unverified | Source committed | Launch on target Mac with webcam | v0.2 / rev 4 | 2026-09-01 | Capture/UI change |
+| UNV-005 | MediaPipe tracking | implemented-unverified | Adapter source committed; missing-model failure test passed | Real model + webcam test | v0.2 / rev 4 | 2026-09-01 | Adapter/model change |
 
 ## 12. Current Change Scope and Impact Radius
 
 - **Allowed to change next:** Output sink/virtual camera, target-hardware benchmark harness, and bounded tracker integration fixes revealed by real hardware proof.
 - **Must remain unchanged:** Clean-room, local-first, license, media-exclusion, performance-portability, no-overwrite recording, and pluggable-pipeline invariants.
 - **Potentially affected behavior:** Live preview/recording and output delivery; portable capture format should remain stable unless a versioned migration is explicitly justified.
-- **Mandatory checks:** Existing 11-test regression suite, Ruff when available, target-Mac preview, real tracker capture/replay, and output-sink validation for the next phase.
-- **Checks deliberately reused:** v0.2 pure-data/local lifecycle tests remain valid until affected source changes.
+- **Mandatory checks:** Existing 11-test regression suite, Ruff, target-Mac preview, real tracker capture/replay, and output-sink validation for the next phase.
+- **Checks deliberately reused:** v0.2 data/lifecycle and CI evidence remain valid until affected source or dependency configuration changes.
 - **Repair class:** Bounded feature expansion.
 
 ## 13. Compact Revision Log
+
+### Revision 4 — 2026-09-01
+
+- **Artifact/source identity:** code commit `1bc4db3cce45697b88a11ac2462293473de0f256`.
+- **State deltas:** Reconciled CI evidence after lint repair; promoted repository lint and test checks to verified.
+- **New evidence:** Initial v0.2 CI exposed Ruff-only findings; commits `40f18e895acfc41d0030a130ef7c67f28b13771b` and `1bc4db3cce45697b88a11ac2462293473de0f256` resolved the reported findings. Actions run `33556559459` then completed successfully with install, Ruff, and pytest all passing.
+- **Validation not performed:** Target-Mac webcam runtime, MediaPipe model inference, M1/M4 throughput, OBS output, and character rendering remain unverified.
 
 ### Revision 3 — 2026-09-01
 
 - **Artifact/source identity:** code commit `2444f60b133ba151bddbf2bfc89fc508593c5e88`.
 - **State deltas:** Added portable performance schema, versioned `.cpc` capture/replay, optional MediaPipe tracker adapter, live recording/inspection CLI paths, format documentation, and expanded tests.
-- **New evidence:** Local execution produced 11 passing tests and a successful `compileall` pass. The code commit is present on `main`.
-- **Validation not performed:** Target-Mac webcam runtime, MediaPipe model inference, M1/M4 throughput, OBS output, and completed GitHub Actions status remain unverified.
+- **New evidence:** Local execution produced 11 passing tests and a successful `compileall` pass. The code commit was present on `main`.
+- **Validation not performed:** Target-Mac webcam runtime, MediaPipe model inference, M1/M4 throughput, OBS output, and completed GitHub Actions status were unverified at that revision.
 
 ### Revision 2 — 2026-09-01
 
 - **Artifact/source identity:** commit `fe1675dd18b1165a013e1b76fb330d3a2edeec4a`
 - **State deltas:** Foundation source, tests, CI, and architecture decisions committed.
-- **New evidence:** GitHub accepted all foundation files; repository is no longer empty.
+- **New evidence:** GitHub accepted all foundation files; repository was no longer empty.
 - **Validation not performed:** CI result, webcam runtime, OBS virtual camera, model inference, and target-Mac throughput remained unverified.
 
 ### Revision 1 — 2026-09-01
