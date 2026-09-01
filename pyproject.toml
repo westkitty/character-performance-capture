@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "character-performance-capture"
+version = "0.1.0"
+description = "Local-first, model-agnostic character performance capture pipeline."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+  "numpy>=2.0,<3",
+  "opencv-python>=4.10,<5",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<9",
+  "ruff>=0.6,<1",
+]
+
+[project.scripts]
+cpc = "cpc.app:main"
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
