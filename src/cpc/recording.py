@@ -11,7 +11,6 @@ from typing import Any, Self
 
 from .performance import JsonScalar, PerformanceFrame
 
-
 FORMAT_NAME = "cpc-performance-capture"
 FORMAT_VERSION = 1
 
