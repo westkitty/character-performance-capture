@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import math
 import os
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 import cv2
 
@@ -72,7 +73,7 @@ def sample_video_window(
         ) from exc
 
     duration = end_s - start_s
-    count = min(max_frames, max(1, int(math.ceil(duration * sample_fps))))
+    count = min(max_frames, max(1, math.ceil(duration * sample_fps)))
     safe_end = max(start_s, end_s - 1e-3)
     if count == 1:
         times = [start_s]

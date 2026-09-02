@@ -5,11 +5,13 @@ import json
 import math
 import re
 import sqlite3
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
+from itertools import pairwise
 from pathlib import Path
-from typing import Iterable, Protocol, Sequence
+from typing import Protocol, Self
 
 from .performance import PerformanceFrame
 from .recording import CaptureData, read_capture
@@ -158,7 +160,7 @@ def _std(values: Sequence[float]) -> float:
 def _motion(values: Sequence[float]) -> float:
     if len(values) < 2:
         return 0.0
-    return _mean([abs(right - left) for left, right in zip(values, values[1:])])
+    return _mean([abs(right - left) for left, right in pairwise(values)])
 
 
 def _sparse_cosine(left: dict[str, float], right: dict[str, float]) -> float:
@@ -312,7 +314,7 @@ class PerformanceLibrary:
     def close(self) -> None:
         self._db.close()
 
-    def __enter__(self) -> "PerformanceLibrary":
+    def __enter__(self) -> Self:
         return self
 
     def __exit__(self, exc_type, exc, tb) -> None:
@@ -574,7 +576,7 @@ class PerformanceLibrary:
                     model=embedder.model,
                     vector=vector,
                 )
-            except Exception as exc:
+            except (OSError, RuntimeError, TypeError, ValueError) as exc:
                 failures.append(EmbeddingFailure(segment_id, str(exc)))
             else:
                 embedded.append(segment_id)

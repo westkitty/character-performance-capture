@@ -31,40 +31,48 @@ def _add_qwen_runtime_args(parser: argparse.ArgumentParser) -> None:
 
 def _qwen_embedder(args):
     if args.runtime == "mlx":
-        from .semantic_qwen_mlx import (
-            DEFAULT_MAX_FRAMES as MLX_MAX_FRAMES,
-            DEFAULT_MAX_SIDE as MLX_MAX_SIDE,
-            DEFAULT_MLX_MODEL_ID,
-            DEFAULT_SAMPLE_FPS as MLX_SAMPLE_FPS,
-            Qwen3VLMLXEmbedder,
-        )
+        from . import semantic_qwen_mlx as qwen_mlx
 
-        return Qwen3VLMLXEmbedder(
+        return qwen_mlx.Qwen3VLMLXEmbedder(
             args.model_path,
-            model_id=args.model_id or DEFAULT_MLX_MODEL_ID,
+            model_id=args.model_id or qwen_mlx.DEFAULT_MLX_MODEL_ID,
             dimensions=args.dimensions,
-            sample_fps=args.sample_fps if args.sample_fps is not None else MLX_SAMPLE_FPS,
-            max_frames=args.max_frames if args.max_frames is not None else MLX_MAX_FRAMES,
-            max_side=args.max_side if args.max_side is not None else MLX_MAX_SIDE,
+            sample_fps=(
+                args.sample_fps
+                if args.sample_fps is not None
+                else qwen_mlx.DEFAULT_SAMPLE_FPS
+            ),
+            max_frames=(
+                args.max_frames
+                if args.max_frames is not None
+                else qwen_mlx.DEFAULT_MAX_FRAMES
+            ),
+            max_side=(
+                args.max_side if args.max_side is not None else qwen_mlx.DEFAULT_MAX_SIDE
+            ),
             verbose=args.verbose,
         )
 
-    from .semantic_qwen import (
-        DEFAULT_MAX_FRAMES as TORCH_MAX_FRAMES,
-        DEFAULT_MAX_SIDE as TORCH_MAX_SIDE,
-        DEFAULT_MODEL_ID,
-        DEFAULT_SAMPLE_FPS as TORCH_SAMPLE_FPS,
-        Qwen3VLSemanticEmbedder,
-    )
+    from . import semantic_qwen as qwen_torch
 
-    return Qwen3VLSemanticEmbedder(
+    return qwen_torch.Qwen3VLSemanticEmbedder(
         args.model_path,
-        model_id=args.model_id or DEFAULT_MODEL_ID,
+        model_id=args.model_id or qwen_torch.DEFAULT_MODEL_ID,
         dimensions=args.dimensions,
         device=args.device,
-        sample_fps=args.sample_fps if args.sample_fps is not None else TORCH_SAMPLE_FPS,
-        max_frames=args.max_frames if args.max_frames is not None else TORCH_MAX_FRAMES,
-        max_side=args.max_side if args.max_side is not None else TORCH_MAX_SIDE,
+        sample_fps=(
+            args.sample_fps
+            if args.sample_fps is not None
+            else qwen_torch.DEFAULT_SAMPLE_FPS
+        ),
+        max_frames=(
+            args.max_frames
+            if args.max_frames is not None
+            else qwen_torch.DEFAULT_MAX_FRAMES
+        ),
+        max_side=(
+            args.max_side if args.max_side is not None else qwen_torch.DEFAULT_MAX_SIDE
+        ),
         verbose=args.verbose,
     )
 

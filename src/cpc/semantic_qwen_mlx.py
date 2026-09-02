@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import math
 import platform
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any
 
 from .semantic_qwen import SemanticEmbeddingError, sample_video_window
 
