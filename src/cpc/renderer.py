@@ -118,6 +118,7 @@ class RigWarpRenderer:
         self._src_points: np.ndarray | None = None
         self._triangles: np.ndarray | None = None
         self._neutral_perf: np.ndarray | None = None
+        self._neutral_head: np.ndarray | None = None
         self._last_render: np.ndarray | None = None
         self._started = False
 
@@ -142,6 +143,7 @@ class RigWarpRenderer:
         if self._triangles.size == 0:
             raise RuntimeError("rig produced no usable triangulation")
         self._neutral_perf = None
+        self._neutral_head = None
         self._last_render = None
         self._started = True
 
@@ -201,6 +203,8 @@ class RigWarpRenderer:
 
         if self._neutral_perf is None:
             self._neutral_perf = perf
+            if performance.head_rotation_deg is not None:
+                self._neutral_head = np.asarray(performance.head_rotation_deg, dtype=np.float64)
             render = self._resized_reference()
             self._last_render = render
             return render
@@ -243,7 +247,14 @@ class RigWarpRenderer:
         self, performance: PerformanceFrame, align_matrix: np.ndarray
     ) -> tuple[float, float, float]:
         if performance.head_rotation_deg is not None:
-            pitch, yaw, roll = performance.head_rotation_deg
+            # Apply head pose *relative* to the calibrated neutral, the same way
+            # expression is relative, so the performer's resting posture does not
+            # permanently pose the character.
+            current = np.asarray(performance.head_rotation_deg, dtype=np.float64)
+            neutral = self._neutral_head
+            if neutral is None:
+                neutral = np.zeros(3)
+            pitch, yaw, roll = current - neutral
             return (
                 float(roll) * self.head_gain,
                 float(yaw) * self.head_gain,
@@ -257,6 +268,7 @@ class RigWarpRenderer:
         self._src_points = None
         self._triangles = None
         self._neutral_perf = None
+        self._neutral_head = None
         self._last_render = None
         self._work_image = None
         self._started = False

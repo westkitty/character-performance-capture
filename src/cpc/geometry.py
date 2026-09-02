@@ -85,6 +85,39 @@ def rotation_affine(center: np.ndarray, *, roll_deg: float, yaw_deg: float, pitc
     return np.hstack([linear, translation.reshape(2, 1)]).astype(np.float64)
 
 
+def matrix_to_euler_deg(transform: object) -> tuple[float, float, float]:
+    """Decompose a rigid transform into ``(pitch, yaw, roll)`` degrees.
+
+    Accepts a flat 16-value row-major 4x4, a flat 9-value 3x3, or an array of
+    either shape. Per-column scale is normalised out; gimbal lock is handled.
+    Angles are Tait-Bryan (rotation about X = pitch, about Y = yaw, about Z =
+    roll), matching ``PerformanceFrame.head_rotation_deg``.
+    """
+
+    arr = np.asarray(transform, dtype=np.float64).reshape(-1)
+    if arr.size == 16:
+        rot = arr.reshape(4, 4)[:3, :3]
+    elif arr.size == 9:
+        rot = arr.reshape(3, 3)
+    else:
+        raise ValueError("transform must have 9 or 16 values")
+
+    scales = np.linalg.norm(rot, axis=0)
+    scales[scales < 1e-9] = 1.0
+    rot = rot / scales
+
+    sy = float(np.hypot(rot[0, 0], rot[1, 0]))
+    if sy > 1e-6:
+        pitch = np.arctan2(rot[2, 1], rot[2, 2])
+        yaw = np.arctan2(-rot[2, 0], sy)
+        roll = np.arctan2(rot[1, 0], rot[0, 0])
+    else:  # gimbal lock: yaw is +/-90 deg, fold roll into pitch
+        pitch = np.arctan2(-rot[1, 2], rot[1, 1])
+        yaw = np.arctan2(-rot[2, 0], sy)
+        roll = 0.0
+    return (float(np.degrees(pitch)), float(np.degrees(yaw)), float(np.degrees(roll)))
+
+
 def _clamp(value: float, low: float, high: float) -> float:
     if not np.isfinite(value):
         return 0.0

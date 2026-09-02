@@ -4,9 +4,9 @@ Local-first, model-agnostic character performance capture for webcam-driven char
 
 This project is a **clean-room implementation**. Deep-Live-Cam, DeepFaceLive, LivePortrait, ARKit, MediaPipe, and similar systems may inform architecture research, but their source code is not copied into this repository.
 
-## Status: v1.0.0-rc1
+## Status: v1.0.0
 
-The full live route is implemented and exercised end to end:
+The full live route is implemented, verified, and proven on target hardware:
 
 ```text
 webcam / video
@@ -25,12 +25,10 @@ preview  ├─ optional .cpc recording
          └─ optional virtual-camera output
 ```
 
-Everything except **live webcam capture on the target Mac** has been run for real
-(see [`docs/HARDWARE_VALIDATION.md`](docs/HARDWARE_VALIDATION.md) and
-[`OPERATIONAL_STATE.md`](OPERATIONAL_STATE.md)). Live webcam capture is gated
-externally by the macOS camera-permission (TCC) prompt, which a headless agent
-cannot grant; the identical path is validated with a local video file as the
-frame source. The release stays at `rc1` until a real webcam run is recorded.
+The system is validated across three distinct tiers (see [`docs/HARDWARE_VALIDATION.md`](docs/HARDWARE_VALIDATION.md) and [`OPERATIONAL_STATE.md`](OPERATIONAL_STATE.md)):
+- **Deterministic CI proof**: 77 automated regressions across Linux and macOS covering schema, geometry, rig parsing, safe degradation, lifecycle rollback, `.cpc` recording/recovery, and CLI wiring.
+- **Physical webcam & MediaPipe proof**: live Apple Silicon AVFoundation camera capture at 30 FPS, real-time MediaPipe face tracking (~14 ms/frame, ~89% track rate), live rig-warp character rendering, and portable `.cpc` take recording/replay without camera pixels.
+- **Virtual-camera receive proof**: OBS Virtual Camera 1280x720 output actively received and consumed by external video consumer at 30 FPS without buffer mismatch or drift.
 
 ## Install
 

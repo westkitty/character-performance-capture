@@ -7,9 +7,18 @@ from cpc.geometry import (
     clamp_displacement,
     clamp_points,
     delaunay_triangles,
+    matrix_to_euler_deg,
     similarity_transform,
     warp_image,
 )
+
+
+def _euler_matrix(pitch_deg, yaw_deg, roll_deg):
+    px, py, pz = np.deg2rad([pitch_deg, yaw_deg, roll_deg])
+    rx = np.array([[1, 0, 0], [0, np.cos(px), -np.sin(px)], [0, np.sin(px), np.cos(px)]])
+    ry = np.array([[np.cos(py), 0, np.sin(py)], [0, 1, 0], [-np.sin(py), 0, np.cos(py)]])
+    rz = np.array([[np.cos(pz), -np.sin(pz), 0], [np.sin(pz), np.cos(pz), 0], [0, 0, 1]])
+    return rz @ ry @ rx
 
 
 def _grid(n: int = 6, step: float = 20.0) -> np.ndarray:
@@ -91,6 +100,25 @@ def test_warp_image_identity_when_source_equals_destination():
     covered = out.any(axis=2)
     # identity warp reproduces the covered interior faithfully
     assert np.array_equal(out[covered], image[covered])
+
+
+@pytest.mark.parametrize(
+    "pitch,yaw,roll",
+    [(0, 0, 0), (12, 0, 0), (0, -20, 0), (0, 0, 30), (10, -15, 25), (-8, 33, -12)],
+)
+def test_matrix_to_euler_deg_recovers_known_rotation(pitch, yaw, roll):
+    rot = _euler_matrix(pitch, yaw, roll)
+    transform = np.eye(4)
+    transform[:3, :3] = rot * np.array([1.3, 0.7, 2.1])  # arbitrary per-column scale
+    transform[:3, 3] = [11.0, -4.0, 30.0]
+    got = matrix_to_euler_deg(transform.reshape(-1).tolist())
+    assert got == pytest.approx((pitch, yaw, roll), abs=1e-4)
+
+
+def test_matrix_to_euler_deg_accepts_3x3_and_rejects_bad_size():
+    assert matrix_to_euler_deg(_euler_matrix(0, 0, 0).reshape(-1)) == pytest.approx((0, 0, 0))
+    with pytest.raises(ValueError):
+        matrix_to_euler_deg([1.0, 2.0, 3.0, 4.0])
 
 
 def test_warp_image_reacts_to_destination_change():

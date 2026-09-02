@@ -6,6 +6,7 @@ from typing import Any
 import cv2
 import numpy as np
 
+from .geometry import matrix_to_euler_deg
 from .performance import Landmark, PerformanceFrame
 from .pipeline import Frame
 
@@ -186,10 +187,12 @@ class MediaPipeFaceTracker:
                     blendshapes[str(name)] = score
 
         face_transform = None
+        head_rotation_deg = None
         if result.facial_transformation_matrixes:
             matrix = np.asarray(result.facial_transformation_matrixes[0], dtype=float)
             if matrix.size == 16:
                 face_transform = tuple(float(value) for value in matrix.reshape(-1))
+                head_rotation_deg = matrix_to_euler_deg(face_transform)
 
         return PerformanceFrame(
             frame_index=frame_index,
@@ -198,6 +201,7 @@ class MediaPipeFaceTracker:
             tracker=self.name,
             profile=self.profile,
             blendshapes=blendshapes,
+            head_rotation_deg=head_rotation_deg,
             face_transform=face_transform,
             landmarks=landmarks,
         )

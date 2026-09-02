@@ -228,6 +228,15 @@ def run_preview(
     window_name = "Character Performance Capture"
     writer: cv2.VideoWriter | None = None
 
+    # On macOS the HighGUI window must exist before the MediaPipe graph builds
+    # its GL/Metal context, otherwise the first cv2.imshow disturbs that context
+    # and the face detector silently stops returning landmarks.
+    if show_window:
+        with _suppress_cv2():
+            cv2.namedWindow(window_name, cv2.WINDOW_AUTOSIZE)
+            for _ in range(3):
+                cv2.waitKey(1)
+
     try:
         with ExitStack() as stack:
             stack.enter_context(source)
