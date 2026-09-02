@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import time
+from contextlib import suppress
 from dataclasses import dataclass
 from typing import Protocol, Self
 
@@ -48,10 +49,8 @@ class Pipeline:
                 started_processors.append(processor)
         except Exception:
             for processor in reversed(started_processors):
-                try:
+                with suppress(Exception):
                     processor.close()
-                except Exception:
-                    pass
             raise
 
         self._frame_index = 0
