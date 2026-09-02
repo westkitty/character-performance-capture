@@ -101,9 +101,21 @@ preview / recorder / virtual camera
 
 Tracking and rendering are deliberately separate. The renderer should be replaceable without invalidating recorded performances.
 
+## Repository license
+
+This repository is currently **proprietary / all rights reserved**. Public visibility is not an open-source license grant. See [`LICENSE`](LICENSE).
+
+Third-party components, optional dependencies, models, datasets, and assets remain governed by their own licenses and terms.
+
 ## Licensing boundary
 
 The repository core has no InsightFace or Inswapper dependency. Optional third-party trackers/renderers must be evaluated as separate adapters, including their code and model licenses. A backend is not production/commercial-ready merely because its Python package is permissively licensed.
+
+## Repository governance
+
+CI runs on Linux and macOS plus a macOS MediaPipe smoke lane. The workflow exposes a stable aggregate `required-ci` job intended to be the single required status check for `main` once GitHub branch rules are enabled.
+
+See [`docs/REPOSITORY_GOVERNANCE.md`](docs/REPOSITORY_GOVERNANCE.md) for the exact ruleset contract and current enforcement state.
 
 ## Privacy boundary
 

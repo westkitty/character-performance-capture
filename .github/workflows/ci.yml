@@ -42,3 +42,17 @@ jobs:
           assert hasattr(mp.tasks, 'vision')"
       - name: MediaPipe adapter smoke test
         run: pytest tests/test_mediapipe_tracker.py
+
+  required-ci:
+    name: required-ci
+    if: ${{ always() }}
+    needs: [test, mediapipe-smoke]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Require every verification lane
+        env:
+          CORE_RESULT: ${{ needs.test.result }}
+          MEDIAPIPE_RESULT: ${{ needs.mediapipe-smoke.result }}
+        run: |
+          test "$CORE_RESULT" = "success"
+          test "$MEDIAPIPE_RESULT" = "success"
