@@ -3,6 +3,8 @@ from __future__ import annotations
 import cv2
 import numpy as np
 import pytest
+
+pytest.importorskip("PySide6")
 from PySide6.QtWidgets import QApplication
 
 from cpc.rig import CharacterRig, default_rig_path, save_rig

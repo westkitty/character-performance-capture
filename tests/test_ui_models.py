@@ -4,6 +4,8 @@ import io
 from unittest.mock import patch
 
 import pytest
+
+pytest.importorskip("PySide6")
 from PySide6.QtWidgets import QApplication
 
 from cpc.ui.models import (
