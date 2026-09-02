@@ -1,4 +1,5 @@
 import numpy as np
+import pytest
 
 from cpc.pipeline import Pipeline
 from cpc.processors import PassthroughRenderer
@@ -73,3 +74,54 @@ def test_processors_run_in_declared_order_and_close_in_reverse():
         "close:renderer",
         "close:tracker",
     ]
+
+
+def test_pipeline_restart_begins_a_fresh_metrics_session():
+    pipeline = Pipeline([PassthroughRenderer()])
+    frame = np.zeros((2, 2, 3), dtype=np.uint8)
+
+    _, first = pipeline.process(frame)
+    pipeline.close()
+    _, restarted = pipeline.process(frame)
+    pipeline.close()
+
+    assert first.frame_index == 0
+    assert first.fps == 0.0
+    assert restarted.frame_index == 0
+    assert restarted.fps == 0.0
+
+
+def test_pipeline_rolls_back_processors_when_start_fails():
+    events = []
+
+    class First:
+        name = "first"
+
+        def start(self):
+            events.append("first:start")
+
+        def process(self, frame):
+            return frame
+
+        def close(self):
+            events.append("first:close")
+
+    class Broken:
+        name = "broken"
+
+        def start(self):
+            events.append("broken:start")
+            raise RuntimeError("boom")
+
+        def process(self, frame):
+            return frame
+
+        def close(self):
+            events.append("broken:close")
+
+    pipeline = Pipeline([First(), Broken()])
+
+    with pytest.raises(RuntimeError, match="boom"):
+        pipeline.start()
+
+    assert events == ["first:start", "broken:start", "first:close"]
