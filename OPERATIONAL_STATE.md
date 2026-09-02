@@ -10,7 +10,7 @@
   "state_revision": 9,
   "last_updated": "2026-09-01",
   "current_baseline": {
-    "identity": "branch feat/v1-character-renderer (HEAD pinned at PR merge); governance ruleset id 22061363 active on main",
+    "identity": "code aaf1f98331062a2360f20b6e6a25becb29e29583 on feat/v1-character-renderer (pre-merge); main merge commit supersedes; governance ruleset id 22061363 active on main",
     "state": "release-candidate",
     "last_verified": "2026-09-01"
   },
@@ -32,7 +32,7 @@
 
 ## 2. Current Baseline
 
-- **Primary code artifact:** branch `feat/v1-character-renderer` (HEAD pinned at PR merge).
+- **Primary code artifact:** `feat/v1-character-renderer` @ `aaf1f98331062a2360f20b6e6a25becb29e29583` (pre-merge); the `main` merge commit supersedes this on merge.
 - **Repository governance artifact:** active `main` ruleset id `22061363`.
 - **Baseline state:** `release-candidate` (CPC `1.0.0rc1`).
 - **Source/build/install identity:** strict portable `PerformanceFrame`; tracker→performance→renderer pipeline; hardened `.cpc` record/replay; optional MediaPipe Face Landmarker adapter (CPU delegate default, `>=0.10.35,<0.11`); `VideoFileSource` frame source; `RigWarpRenderer` deterministic 2D landmark-driven character renderer with an authored/derived rig sidecar contract; optional `VirtualCameraSink` (`pyvirtualcam`, OBS backend); coherent grouped CLI (`cpc --help`); mp4 rendered-preview recorder; local-only `--doctor`; 69 regression tests; explicit proprietary licensing; stable aggregate `required-ci`; enforced `main` ruleset.
@@ -163,7 +163,7 @@ The revision-5 defects remain fixed and regression-covered. No target-hardware f
 
 ### Revision 9 — 2026-09-01
 
-- **Artifact/source identity:** branch `feat/v1-character-renderer`, HEAD pinned at PR merge; governance ruleset id `22061363` active on `main`.
+- **Artifact/source identity:** `feat/v1-character-renderer` @ `aaf1f98331062a2360f20b6e6a25becb29e29583` (pre-merge); superseded by the `main` merge commit; governance ruleset id `22061363` active on `main`.
 - **State deltas:** Added `VideoFileSource`; `RigWarpRenderer` (deterministic 2D landmark-driven character renderer) + `cpc/geometry.py` + `cpc/rig.py` with an authored/derived rig-sidecar contract; `--derive-rig`; `VirtualCameraSink` (optional `pyvirtualcam`, OBS backend) + `output-virtualcam` extra; grouped/legible CLI with `--video/--loop/--render/--character/--rig/--tracker-delegate/--virtual-camera/--vcam-size/--record-video/--no-window/--frames`; pinned `mediapipe>=0.10.35,<0.11` (CPU delegate default); version `0.2.0` → `1.0.0rc1`; 26 → 69 regression tests; new `docs/RENDERER.md`; refreshed README / ARCHITECTURE / HARDWARE_VALIDATION / REPOSITORY_GOVERNANCE; `.gitignore` ignores `*.rig.json`.
 - **New real evidence (this M1, video frame source):** VER-014 real MediaPipe doctor (108/120 tracked, 13.3 ms/frame); VER-015 rig-warp renderer produced 150 unique reactive frames with identity preserved; VER-016 real `.cpc` take (150 frames complete) + interrupted `.partial` recovery (104 frames) with no overwrite; VER-017 virtual-camera send side (1280x720 negotiated, 240 frames, clean close, RSS ~212 MB flat); VER-018 `main` ruleset active with five rules independently observable.
 - **Model/asset handling:** Google-hosted Apache-2.0 `face_landmarker.task` fetched to `~/.cache/cpc-validation/` outside the repo, not committed. Validation clip, cartoon character, rig sidecar, `.cpc` takes, and rendered mp4 all kept out of Git.
