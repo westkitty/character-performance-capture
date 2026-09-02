@@ -7,10 +7,10 @@
   "project_name": "Character Performance Capture",
   "project_root": "westkitty/character-performance-capture",
   "artifact_path": null,
-  "state_revision": 10,
+  "state_revision": 11,
   "last_updated": "2026-09-02",
   "current_baseline": {
-    "identity": "CPC 1.0.0 release on release-1.0.0; governance ruleset id 22061363 active on main",
+    "identity": "CPC 1.0.0 on protected main; v1.0.0 implementation baseline f348242b5382628a6124411d4b8abc776d9883d4; governance ruleset 22061363 active.",
     "state": "production-v1",
     "last_verified": "2026-09-02"
   },
@@ -32,7 +32,7 @@
 
 ## 2. Current Baseline
 
-- **Primary code artifact:** `release-1.0.0` (promoted to `1.0.0` after complete physical hardware validation).
+- **Primary code artifact:** `main` — CPC `1.0.0`; release implementation baseline `f348242b5382628a6124411d4b8abc776d9883d4` (PR #4 squash merge). Subsequent documentation/state-only commits on `main` do not alter that implementation baseline.
 - **Repository governance artifact:** active `main` ruleset id `22061363`.
 - **Baseline state:** `production-v1` (CPC `1.0.0`).
 - **Source/build/install identity:** strict portable `PerformanceFrame`; tracker→performance→renderer pipeline; hardened `.cpc` record/replay; optional MediaPipe Face Landmarker adapter (CPU delegate default, `>=0.10.35,<0.11`); `VideoFileSource` frame source; `RigWarpRenderer` deterministic 2D landmark-driven character renderer with relative head pose calibration and authored/derived rig sidecar contract; optional `VirtualCameraSink` (`pyvirtualcam`, OBS backend); coherent grouped CLI (`cpc --help`); mp4 rendered-preview recorder; local-only `--doctor`; 77 regression tests; explicit proprietary licensing; stable aggregate `required-ci`; enforced `main` ruleset.
@@ -43,7 +43,7 @@
   - Live character renderer pipeline: 150 reactive rendered frames (640x512) driven by live facial expression and calibrated relative head rotation without showing performer face pixels (VER-021).
   - Real webcam `.cpc` recording & inspection: 150 frames, 10.035s duration, strictly portable schema without camera pixels (VER-022).
   - Virtual camera send & receive proof: OBS Virtual Camera 1280x720 stream received by external consumer at 30.29 FPS without buffer mismatch or drift (VER-023).
-- **Prior verification evidence:** GitHub Actions runs `33579448271`, `33583264952`, `33583412212` — Ubuntu/macOS core, MediaPipe smoke, and `required-ci` all green.
+- **Prior verification evidence:** GitHub Actions release run `33598377667` on `main` (PR #4 merge commit `f348242b5382628a6124411d4b8abc776d9883d4`) — Ubuntu core, macOS core, MediaPipe smoke, and `required-ci` all successful; earlier runs `33579448271`, `33583264952`, `33583412212` green.
 
 ## 3. Artifact Contract
 
@@ -174,9 +174,14 @@ All core, physical, and virtual-camera paths are verified.
 
 ## 13. Compact Revision Log
 
+### Revision 11 — 2026-09-02
+
+- **Artifact/source identity:** `main` — CPC `1.0.0`; release implementation baseline `f348242b5382628a6124411d4b8abc776d9883d4` (PR #4 squash merge); release CI run `33598377667` green; governance ruleset `22061363` active on `main`.
+- **State deltas:** Cleaned up current-state wording in `OPERATIONAL_STATE.md` to establish `main` as the authoritative branch and `f348242b5382628a6124411d4b8abc776d9883d4` as the immutable v1.0.0 release implementation baseline, clarifying that subsequent documentation/state-only commits advance `main` without altering the verified software implementation; updated release CI run evidence to `33598377667`.
+
 ### Revision 10 — 2026-09-02
 
-- **Artifact/source identity:** CPC `1.0.0` on `release-1.0.0` (promoted from `1.0.0rc1`).
+- **Artifact/source identity:** CPC `1.0.0` release implementation via PR #4 (`release-1.0.0` merged to `main` at `f348242b5382628a6124411d4b8abc776d9883d4`; release CI run `33598377667` green).
 - **Physical validation results (Apple Silicon M1, macOS 26.6.2):**
   - VER-019: Real AVFoundation webcam doctor (1080p @ 30.64 FPS, 32.55 ms avg read latency, clean exit, zero pixel persistence).
   - VER-020: Real MediaPipe tracking on webcam (107/120 frames tracked, 14.57 ms avg tracker processing latency, CPU delegate).
