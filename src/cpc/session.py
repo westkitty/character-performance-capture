@@ -152,6 +152,8 @@ class SessionConfig:
         tokens = ["cpc"] + [shlex.quote(arg) for arg in self.to_cli_args()]
         return " ".join(tokens)
 
+    to_cli_command = to_command_string
+
     def validate(self) -> list[str]:
         """Validate configuration sanity and return a list of actionable error strings."""
         errors: list[str] = []

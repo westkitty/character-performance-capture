@@ -7,11 +7,11 @@
   "project_name": "Character Performance Capture",
   "project_root": "westkitty/character-performance-capture",
   "artifact_path": null,
-  "state_revision": 13,
+  "state_revision": 17,
   "last_updated": "2026-09-02",
   "current_baseline": {
-    "identity": "CPC 1.1.0 with Production Creator Studio GUI (cpc-ui); 105 regression tests; backpressure handling; session presets; performance mode; command palette; full native Mac verification; ruleset 22061363 active.",
-    "state": "production-v1.1",
+    "identity": "CPC 1.1.0 feature-branch candidate on feat/desktop-ui with Stage-First Total UX Rearchitecture, Curated Model Library, and Guided Character Setup; 134 regression tests; hermetic test environment isolation; main remains authoritative CPC 1.0.0 until protected PR merge; ruleset 22061363 active.",
+    "state": "release-candidate-v1.1",
     "last_verified": "2026-09-02"
   },
   "scope_boundaries": [
@@ -33,9 +33,10 @@
 ## 2. Current Baseline
 
 - **Primary code artifact:** `main` — CPC `1.0.0`; release implementation baseline `f348242b5382628a6124411d4b8abc776d9883d4` (PR #4 squash merge). Subsequent documentation/state-only commits on `main` do not alter that implementation baseline.
+- **Feature branch artifact:** `feat/desktop-ui` — CPC `1.1.0` Creator Studio GUI; Stage-First Total UX Rearchitecture; Curated Model Library; Guided Character Setup; hermetic test isolation; and 134 automated unit/regression tests.
 - **Repository governance artifact:** active `main` ruleset id `22061363`.
-- **Baseline state:** `production-v1` (CPC `1.0.0`).
-- **Source/build/install identity:** strict portable `PerformanceFrame`; tracker→performance→renderer pipeline; hardened `.cpc` record/replay; optional MediaPipe Face Landmarker adapter (CPU delegate default, `>=0.10.35,<0.11`); `VideoFileSource` frame source; `RigWarpRenderer` deterministic 2D landmark-driven character renderer with relative head pose calibration and authored/derived rig sidecar contract; optional `VirtualCameraSink` (`pyvirtualcam`, OBS backend); coherent grouped CLI (`cpc --help`); mp4 rendered-preview recorder; local-only `--doctor`; 77 regression tests; explicit proprietary licensing; stable aggregate `required-ci`; enforced `main` ruleset.
+- **Baseline state:** `release-candidate-v1.1` on `feat/desktop-ui`; `main` remains the authoritative merged/released branch until the protected PR workflow completes.
+- **Source/build/install identity:** strict portable `PerformanceFrame`; tracker→performance→renderer pipeline; hardened `.cpc` record/replay; optional MediaPipe Face Landmarker adapter (CPU delegate default, `>=0.10.35,<0.11`); `VideoFileSource` frame source; `RigWarpRenderer` deterministic 2D landmark-driven character renderer with relative head pose calibration and authored/derived rig sidecar contract; optional `VirtualCameraSink` (`pyvirtualcam`, OBS backend); coherent grouped CLI (`cpc --help`); mp4 rendered-preview recorder; local-only `--doctor`; 134 regression tests on the v1.1 candidate; explicit proprietary licensing; stable aggregate `required-ci`; enforced `main` ruleset.
 - **Verified deterministic route:** schema, record/replay integrity, no-overwrite finalization, pipeline lifecycle/restart, diagnostic report logic and cleanup, geometry (similarity transform / clamping / matrix-to-euler / triangulation / warp), rig load+validation, rig-warp renderer safe-degradation and reactivity, relative head rotation calibration, `VideoFileSource` lifecycle, `VirtualCameraSink` negotiation/letterbox/absent-backend error, CLI wiring, Linux/macOS install, Ruff, pytest, MediaPipe package/API smoke, aggregate CI-gate behavior.
 - **Physical validation executed on target hardware (Apple Silicon M1, macOS 26.6.2, AVFOUNDATION):**
   - Physical camera doctor: opened index 0, 1920x1080 @ 30 FPS, 30.64 sampled FPS, zero camera pixels persisted (VER-019).
@@ -43,7 +44,7 @@
   - Live character renderer pipeline: 150 reactive rendered frames (640x512) driven by live facial expression and calibrated relative head rotation without showing performer face pixels (VER-021).
   - Real webcam `.cpc` recording & inspection: 150 frames, 10.035s duration, strictly portable schema without camera pixels (VER-022).
   - Virtual camera send & receive proof: OBS Virtual Camera 1280x720 stream received by external consumer at 30.29 FPS without buffer mismatch or drift (VER-023).
-- **Prior verification evidence:** GitHub Actions release run `33598377667` on `main` (PR #4 merge commit `f348242b5382628a6124411d4b8abc776d9883d4`) — Ubuntu core, macOS core, MediaPipe smoke, and `required-ci` all successful; earlier runs `33579448271`, `33583264952`, `33583412212` green.
+- **Prior verification evidence:** GitHub Actions release run `33598377667` on `main` (PR #4 merge commit `f348242b5382628a6124411d4b8abc776d9883d4`) — Ubuntu core, macOS core, MediaPipe smoke, and `required-ci` all successful. Feature-branch QoL CI run `33609563770` on `070c2ab936f9c40c20d64625c6cac89567bd3c0a` completed successfully across Ubuntu, macOS, MediaPipe smoke, UI smoke, and `required-ci`.
 
 ## 3. Artifact Contract
 
@@ -92,21 +93,23 @@ The project is a clean-room implementation with a testable headless core. The pr
 - **VER-024 — Relative head rotation calibration & HighGUI macOS context fix:** Head rotation is computed relative to calibrated neutral pose so performer resting posture does not permanently deform the character; HighGUI preview window is initialized cleanly before GL/Metal context creation. Expanded test suite to 77 passing tests.
 - **VER-025 — Desktop Studio GUI (`cpc-ui`):** Local-first PySide6 / Qt creator studio featuring Live Studio (webcam/video ingest, MediaPipe tracking, rig-warp render, live telemetry, `.cpc` & MP4 recording, OBS virtual camera streaming), Character & Rig derivation/visualizer, Takes Inspector, Diagnostics Studio, Settings/About readiness dashboard, 100% CLI parity registry, background QThread workers, and 98 passing unit/smoke tests.
 - **VER-026 — Production Creator Studio Hardening & Verification (CPC 1.1.0):** Elevated semantic dark creator design system; full backpressure handling and display frame coalescing without dropping recording streams; explicit QImage memory buffer ownership safety; session token lifecycle tracking and multi-cycle restart proof; named session presets (save/load/export/import JSON); recent items management; distraction-free Performance Mode (`Cmd+P`) with sleek live HUD; Spotlight-style Quick Actions / Command Palette (`Cmd+K`); dismissible first-run onboarding; post-session summary drawer with Finder reveal and Takes Studio inspection; interactive wireframe visualizer with overwrite protection; 105 automated regression tests passing across all suites.
+- **VER-027 — Autonomous Quality-of-Life Megapass & UX Uplift (CPC 1.1.0 candidate):** Commit `070c2ab936f9c40c20d64625c6cac89567bd3c0a` adds Clean Preview Projector Window, neutral recenter calibration, actionable preflight navigation, countdown, collision-safe filenames, dirty-state presets, per-character memory/favorites, drag-and-drop, batch take inspection, diagnostics setup transfer, and Panic Stop. GitHub Actions run `33609563770` independently passed Ubuntu, macOS, MediaPipe smoke, UI smoke, and `required-ci`; the implementation run reported 109 local regression tests and native macOS visual/runtime exercise.
 
 ## 6. Known Not Working
 
-No unresolved deterministic or physical defects remain in CPC 1.0.0.
+No unresolved deterministic or physical defects remain in CPC 1.0.0. No release-blocking deterministic defect is currently known on the v1.1 feature branch after the 109-test/CI pass; native QoL verification evidence is preserved as implementation-run evidence until merge/release closure.
 
 - **GOV-001 — RESOLVED at revision 9:** Ruleset id `22061363` active and enforced.
 - **PHY-001 — RESOLVED at revision 10:** Physical webcam capture, MediaPipe inference, character rendering, `.cpc` capture, and virtual-camera consumer receive are fully verified.
 
 ## 7. Implemented but Unverified
 
-All core, physical, and virtual-camera paths are verified.
+Core and previously validated physical routes remain verified. The v1.1 QoL implementation has successful deterministic/CI evidence; this state-repair pass did not independently re-run the native GUI on the user's Mac.
 
 - **UNV-001 — RESOLVED at revision 10:** Real webcam doctor and live character route fully verified (VER-019..VER-022).
 - **UNV-002 — RESOLVED at revision 10:** Receive-side virtual-camera consumption verified with external consumer at 30.29 FPS (VER-023).
 - **UNV-004..UNV-007 — RESOLVED via video & real camera sources:** real Face Landmarker inference (VER-014, VER-020), production character renderer (VER-015, VER-021), real `.cpc` capture/replay with a real tracker (VER-016, VER-022), virtual-camera output and receive (VER-017, VER-023).
+- **UNV-008:** Independent native re-run of the new Revision-14 QoL surfaces (Clean Preview, dirty preset flows, drag/drop, batch inspector, diagnostics transfer) was not available to the Revision-15 remote state-repair environment; implementation-run native evidence remains recorded under VER-027.
 
 ## 8. Unknown or Evidence-Stale State
 
@@ -125,6 +128,7 @@ All core, physical, and virtual-camera paths are verified.
 - **PND-008:** Optional tracker/renderer threading for higher live FPS (post-1.0 optimization).
 - **PND-009 — RESOLVED at revision 10:** Real webcam run recorded and promoted to `1.0.0`.
 - **PND-010 — RESOLVED at revision 12:** Desktop studio GUI (`cpc-ui`) implemented and verified.
+- **PND-011 — RESOLVED at revision 14:** Production desktop QoL megapass (Clean Preview projector, presets with dirty state, neutral pose recentering, drag-and-drop, batch inspection) implemented with deterministic/CI verification and reported native exercise.
 
 ## 10. Active Decisions, Defaults, and Prohibitions
 
@@ -146,6 +150,16 @@ All core, physical, and virtual-camera paths are verified.
 - **DEC-016:** MediaPipe is pinned `>=0.10.35,<0.11` with the CPU delegate default; `1.0.x` aborts on headless macOS.
 - **DEC-017:** `pyvirtualcam` (`output-virtualcam` extra) is the virtual-camera backend; core has no hard dependency on it. Rendered frames are letter-boxed into a backend-accepted resolution.
 - **DEC-018:** PySide6 (`ui` extra) is the desktop studio GUI framework; core headless engine remains usable without GUI dependencies.
+- **DEC-019:** Live preview/QImage presentation work may coalesce stale display frames for responsiveness, but must not drop or reorder canonical tracking, `.cpc`, rendered-video, or virtual-camera processing.
+- **DEC-020:** Session presets, recents, favorites, and per-character memory store local configuration/path metadata only; they do not embed user media, model bytes, captures, or credentials.
+- **DEC-021:** Neutral-pose recentering changes only the active session's relative performer reference; it does not rewrite character rigs, tracker models, or recorded source media.
+- **DEC-022:** Clean Preview is a presentation surface over existing rendered output, not a second renderer or alternate capture pipeline; closing/manipulating it must not terminate the active session.
+- **DEC-023:** Curated Model Library ships metadata-only (zero model binaries committed to Git); model installation is 100% user-initiated into platform app-managed storage (`models/mediapipe/face_landmarker.task`); operation is 100% offline once installed with zero network calls on startup.
+- **DEC-024:** Guided 6-Stage Character Setup (`1 Character` → `2 Tracking` → `3 Build Rig` → `4 Verify` → `5 Calibrate` → `6 Ready`) is the canonical onboarding journey, providing automatic rig sidecar defaults, wireframe visualizer checklist, rest pose calibration countdown, and 1-click `"Start Performing"` Live handoff.
+- **DEC-025:** Reusable `ModelSelectorWidget` provides unified model discovery, Recommended badge, readiness indicators, download progress, and advanced technical disclosure across both Character Setup and Live Studio.
+- **DEC-026:** Stage-First Live Studio with contextual Inspector replaces permanently exposed configuration walls while retaining the same underlying SessionConfig and capture pipeline.
+- **DEC-027:** Readiness labels are scoped observable claims and may only state Preview Ready / Tracking Ready / Ready to Perform when corresponding prerequisites are satisfied; missing or unconfigured components truthfully report Needs Attention.
+- **DEC-028:** Tests for UI model and readiness state must be hermetically isolated from developer-machine QSettings and local model caches.
 
 ## 11. Validation and Evidence Matrix
 
@@ -170,14 +184,43 @@ All core, physical, and virtual-camera paths are verified.
 | VER-023 | Virtual camera consumer receive proof | verified | 60 frames consumed at 1280x720 @ 30.29 FPS | Target M1 execution | rev 10 | 2026-09-02 | Virtual camera change |
 | VER-024 | Expanded 77-test regression suite | verified | 77 passing tests in 0.49s | pytest + Ruff | rev 10 | 2026-09-02 | Test change |
 | VER-025 | Desktop Studio GUI (`cpc-ui`) & 98-test suite | verified | 98 passing tests, 100% CLI parity, background threading, 5 workspaces | pytest + Ruff + UI smoke | rev 12 | 2026-09-02 | UI/workspaces change |
+| VER-026 | Production Creator Studio hardening | verified | Backpressure/QImage/session-state/preset/performance-mode/command-palette work; 105-test implementation evidence | pytest + Ruff + native implementation run | code 3b6f333 / rev 13 | 2026-09-02 | UI lifecycle/rendering change |
+| VER-027 | QoL megapass + 109-test candidate | verified | Commit 070c2ab; Actions run 33609563770 green in Ubuntu/macOS/MediaPipe/UI-smoke/required-ci | GitHub Actions + implementation-run local/native evidence | code 070c2ab / rev 14 | 2026-09-02 | QoL/UI change |
+| VER-028 | Curated Model Library & Guided Character Setup | verified | 123 passing automated tests; 100% clean Ruff; complete 6-stage journey verified with high-res captures | pytest + Ruff + visual captures | code rev 16 | 2026-09-02 | Model registry / Character setup change |
+| VER-029 | Stage-First CPC Studio UX Rearchitecture & Hermetic CI Repair | verified | 134 passing automated tests; 100% clean Ruff; hermetic test environment isolation; 5 workspaces rearchitected around dominant stage and contextual inspector | pytest + Ruff + visual captures + CI | code rev 17 | 2026-09-02 | UI architecture & hermetic test repair |
 
 ## 12. Current Change Scope and Impact Radius
 
-- **Allowed to change next:** Optional multi-threaded pipeline optimization (PND-008) for higher live FPS; optional offline generative renderers behind the existing seam.
+- **Allowed to change next:** Finish protected PR/review/merge of the v1.1 desktop candidate; optional tracker/renderer threading optimization (PND-008); optional offline generative renderers behind the existing seam.
 - **Must remain unchanged:** clean-room, local-first, media/model exclusion, license isolation, performance portability, strict capture integrity, no-overwrite recording, diagnostic privacy, repository-rights clarity, and pluggable-pipeline invariants.
-- **Mandatory next checks:** retain the 98-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, UI smoke, and `required-ci`.
+- **Mandatory next checks:** retain the 134-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, UI smoke, and `required-ci`; do not merge the v1.1 candidate unless the protected workflow is green.
 
 ## 13. Compact Revision Log
+
+### Revision 17 — 2026-09-02
+
+- **Artifact/source identity:** `feat/desktop-ui` candidate with Stage-First Total UX Rearchitecture and Hermetic Test Environment Repair; 134 passing automated unit/smoke/semantic tests; 100% clean Ruff.
+- **State deltas:** Total UX rearchitecture of CPC Studio: dominant Stage viewport occupying 85% of screen width; interactive Session Strip under the stage; contextual slide-out Inspector drawer (~360px) openable per-topic; truthful scoped readiness states (`Preview Ready`, `Tracking Ready`, `Ready to Perform`, `Needs Attention`); simplified 6-stage Character Setup with artwork drop card and Step-4-only verification overlays; Recent-Takes-First library with metadata details and collapsible JSON; System Health Check diagnostics with truthful `— Not Checked` default states; quiet Preferences with physical model asset filtering; hermetic test isolation fixtures (`tests/conftest.py`) isolating QSettings and ModelRegistry; custom model path preservation in `TrackerPanel.load_from_config()` without silent substitution; expanded test suite from 123 to 134 tests (`tests/test_ui_redesign_semantics.py`, `tests/test_ui_models.py`).
+
+### Revision 16 — 2026-09-02
+
+- **Artifact/source identity:** `feat/desktop-ui` candidate with Curated Model Library and Guided Character Setup; 123 passing automated unit/smoke tests; 100% clean Ruff.
+- **State deltas:** Added `src/cpc/ui/models.py` with `ModelRegistry`, `ModelStatus`, and async `ModelDownloadWorker` with progress, cancellation, and atomic install; added `src/cpc/ui/widgets/model_selector.py` with curated presentation, Recommended badge, status indicators, and advanced path/delegate disclosure; transformed `CharacterWorkspace` into an intuitive 6-stage guided progression (`1 Character` → `2 Tracking` → `3 Build Rig` → `4 Verify` → `5 Calibrate` → `6 Ready`) with 1-click `"Start Performing"` handoff into Live Studio; integrated Model Selector into `TrackerPanel` in Live Studio; added Tracking Models & Library management section to `SettingsWorkspace`; expanded automated test suite from 109 to 123 tests (`tests/test_ui_models.py`, `tests/test_ui_character_setup.py`); verified offline guarantees and visual evidence across all setup stages.
+
+### Revision 15 — 2026-09-02
+
+- **Artifact/source identity:** `feat/desktop-ui` v1.1 candidate with QoL code baseline `070c2ab936f9c40c20d64625c6cac89567bd3c0a`; branch CI run `33609563770` green across Ubuntu, macOS, MediaPipe smoke, UI smoke, and `required-ci`.
+- **State deltas:** Repaired the Revision-14 state-file truncation without changing CPC runtime code. Restored the durable `DEC-011..DEC-018` meanings, Validation and Evidence Matrix, Current Change Scope, and historical Revision Log; moved the new GUI/QoL decisions to `DEC-019..DEC-022`; clarified that `main` remains authoritative until protected PR merge; preserved implementation-run native evidence without falsely claiming this remote repair pass re-ran the Mac GUI.
+
+### Revision 14 — 2026-09-02
+
+- **Artifact/source identity:** QoL implementation commit `070c2ab936f9c40c20d64625c6cac89567bd3c0a` on `feat/desktop-ui`, CPC `1.1.0`; 109-test implementation result and GitHub Actions run `33609563770` green.
+- **State deltas:** Added Clean Preview projector window; neutral pose recenter; actionable Fix-This preflight; 3s/5s countdown; collision-safe filename generation; dirty-state preset duplication/rename/import/export; per-character rig/gain memory and favorites; drag-and-drop across supported source/model/character/rig/take surfaces; batch take inspection; diagnostics setup transfer/presets; settings dependency commands; Panic Stop. The original Revision-14 state write accidentally truncated lower ledger sections; Revision 15 restores that history while preserving this code baseline.
+
+### Revision 13 — 2026-09-02
+
+- **Artifact/source identity:** `feat/desktop-ui` production-hardening baseline culminating at `3b6f3334c9af657260da01774236e55cda66e221`; CPC `1.1.0`; approximately 105 automated regressions in the pre-QoL hardening pass.
+- **State deltas:** Hardened Creator Studio presentation and lifecycle; added display-frame backpressure handling, explicit QImage ownership safety, session-token restart protection, named presets/recents, Performance Mode, Quick Actions command palette, first-run onboarding, post-session summary, wireframe visualizer and overwrite protection; final bug-sweep commit fixed CLI-command copying and related regression coverage.
 
 ### Revision 12 — 2026-09-02
 

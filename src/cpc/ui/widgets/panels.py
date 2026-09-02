@@ -1,12 +1,15 @@
 from __future__ import annotations
 
-import os
+import shutil
 from pathlib import Path
 
+import cv2
 from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QDesktopServices, QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
+    QDoubleSpinBox,
     QFileDialog,
     QGridLayout,
     QGroupBox,
@@ -21,15 +24,18 @@ from PySide6.QtWidgets import (
 )
 
 from cpc.session import SessionConfig
+from cpc.ui.settings import AppSettings, generate_timestamped_filename
 
 
 class SourcePanel(QGroupBox):
-    """Configuration panel for Camera vs Video frame source."""
+    """Configuration panel for Camera vs Video frame source with drag/drop and camera scan."""
 
     config_changed = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__("Frame Ingest Source", parent)
+        self.setAcceptDrops(True)
+        self._settings = AppSettings()
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -37,9 +43,9 @@ class SourcePanel(QGroupBox):
         layout.setContentsMargins(12, 14, 12, 12)
         layout.setSpacing(10)
 
-        # Source Selection Tabs / Radio Toggle
+        # Source Kind Selector
         type_row = QHBoxLayout()
-        type_row.setSpacing(16)
+        type_row.setSpacing(12)
         self._combo_source_type = QComboBox()
         self._combo_source_type.addItems(["Physical Camera (Webcam)", "Local Video File (MP4/MOV)"])
         self._combo_source_type.currentIndexChanged.connect(self._on_type_changed)
@@ -55,23 +61,21 @@ class SourcePanel(QGroupBox):
         cam_layout.setContentsMargins(0, 0, 0, 0)
         cam_layout.setSpacing(8)
 
-        # Camera Index
         cam_layout.addWidget(QLabel("Camera Device:"), 0, 0)
-        self._cam_index_spin = QSpinBox()
-        self._cam_index_spin.setRange(0, 32)
-        self._cam_index_spin.setValue(0)
-        self._cam_index_spin.valueChanged.connect(lambda: self.config_changed.emit())
+        self._cam_combo = QComboBox()
+        self._cam_combo.addItem("Camera 0 (Default)", 0)
+        self._cam_combo.currentIndexChanged.connect(lambda: self.config_changed.emit())
 
-        self._rescan_btn = QPushButton("Refresh")
-        self._rescan_btn.setToolTip("Refresh camera device list")
+        self._rescan_btn = QPushButton("↻ Rescan")
+        self._rescan_btn.setToolTip("Probe connected camera devices")
         self._rescan_btn.clicked.connect(self._rescan_cameras)
 
-        cam_idx_row = QHBoxLayout()
-        cam_idx_row.addWidget(self._cam_index_spin, 1)
-        cam_idx_row.addWidget(self._rescan_btn)
-        cam_layout.addLayout(cam_idx_row, 0, 1)
+        cam_row = QHBoxLayout()
+        cam_row.addWidget(self._cam_combo, 1)
+        cam_row.addWidget(self._rescan_btn)
+        cam_layout.addLayout(cam_row, 0, 1)
 
-        # Requested Resolution & FPS
+        # Resolution & FPS Negotiation
         cam_layout.addWidget(QLabel("Negotiation:"), 1, 0)
         res_row = QHBoxLayout()
         self._combo_res = QComboBox()
@@ -95,17 +99,23 @@ class SourcePanel(QGroupBox):
         vid_layout.setContentsMargins(0, 0, 0, 0)
         vid_layout.setSpacing(8)
 
-        vid_layout.addWidget(QLabel("Video Path:"), 0, 0)
+        vid_layout.addWidget(QLabel("Video File:"), 0, 0)
         self._video_edit = QLineEdit()
-        self._video_edit.setPlaceholderText("Select performer video (.mp4, .mov, .avi)...")
+        self._video_edit.setPlaceholderText("Select or drop performer video (.mp4, .mov)...")
         self._video_edit.textChanged.connect(lambda: self.config_changed.emit())
 
         self._browse_vid_btn = QPushButton("Browse...")
         self._browse_vid_btn.clicked.connect(self._browse_video)
 
+        self._clear_vid_btn = QPushButton("✕")
+        self._clear_vid_btn.setMaximumWidth(28)
+        self._clear_vid_btn.setToolTip("Clear video source and return to camera")
+        self._clear_vid_btn.clicked.connect(self._clear_video)
+
         vid_path_row = QHBoxLayout()
         vid_path_row.addWidget(self._video_edit, 1)
         vid_path_row.addWidget(self._browse_vid_btn)
+        vid_path_row.addWidget(self._clear_vid_btn)
         vid_layout.addLayout(vid_path_row, 0, 1)
 
         # Loop Toggle
@@ -130,22 +140,71 @@ class SourcePanel(QGroupBox):
         self.config_changed.emit()
 
     def _rescan_cameras(self) -> None:
+        """Scan available camera indices 0..3."""
+        curr_val = self._cam_combo.currentData()
+        self._cam_combo.blockSignals(True)
+        self._cam_combo.clear()
+        
+        found = 0
+        for i in range(4):
+            cap = cv2.VideoCapture(i)
+            if cap.isOpened():
+                self._cam_combo.addItem(f"Camera {i}", i)
+                cap.release()
+                found += 1
+
+        if found == 0:
+            self._cam_combo.addItem("Camera 0 (Default)", 0)
+
+        # Restore index if found
+        idx = self._cam_combo.findData(curr_val)
+        if idx >= 0:
+            self._cam_combo.setCurrentIndex(idx)
+        else:
+            self._cam_combo.setCurrentIndex(0)
+        self._cam_combo.blockSignals(False)
         self.config_changed.emit()
 
     def _browse_video(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Performer Video",
-            os.path.expanduser("~"),
+            self._settings.get_last_directory(),
             "Video Files (*.mp4 *.mov *.avi *.mkv);;All Files (*)",
         )
         if path:
+            self._settings.set_last_directory(path)
+            self._settings.add_recent_item("videos", path)
             self._video_edit.setText(path)
+
+    def _clear_video(self) -> None:
+        self._video_edit.clear()
+        self._combo_source_type.setCurrentIndex(0)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                p = Path(url.toLocalFile())
+                if p.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv"}:
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        for url in event.mimeData().urls():
+            p = Path(url.toLocalFile())
+            if p.suffix.lower() in {".mp4", ".mov", ".avi", ".mkv"}:
+                self._combo_source_type.setCurrentIndex(1)
+                self._video_edit.setText(str(p))
+                self._settings.add_recent_item("videos", p)
+                event.acceptProposedAction()
+                return
 
     def apply_to_config(self, cfg: SessionConfig) -> None:
         if self._combo_source_type.currentIndex() == 0:
             cfg.source_type = "camera"
-            cfg.camera_index = self._cam_index_spin.value()
+            cam_idx = self._cam_combo.currentData()
+            cfg.camera_index = int(cam_idx) if cam_idx is not None else 0
             cfg.video_path = None
         else:
             cfg.source_type = "video"
@@ -184,7 +243,12 @@ class SourcePanel(QGroupBox):
             self._loop_checkbox.setChecked(cfg.loop_video)
         else:
             self._combo_source_type.setCurrentIndex(0)
-            self._cam_index_spin.setValue(cfg.camera_index)
+            idx = self._cam_combo.findData(cfg.camera_index)
+            if idx >= 0:
+                self._cam_combo.setCurrentIndex(idx)
+            else:
+                self._cam_combo.addItem(f"Camera {cfg.camera_index}", cfg.camera_index)
+                self._cam_combo.setCurrentIndex(self._cam_combo.count() - 1)
 
         self._mirror_checkbox.setChecked(cfg.mirror)
 
@@ -208,110 +272,92 @@ class SourcePanel(QGroupBox):
 
 
 class TrackerPanel(QGroupBox):
-    """Configuration panel for Performance Tracker selection."""
+    """Configuration panel for Performance Tracker selection with Curated Model Library."""
 
     config_changed = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__("Performance Tracker", parent)
+        self.setAcceptDrops(True)
+        self._settings = AppSettings()
         self._init_ui()
 
     def _init_ui(self) -> None:
-        layout = QGridLayout(self)
-        layout.setContentsMargins(12, 14, 12, 12)
-        layout.setSpacing(8)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 10, 8, 8)
+        layout.setSpacing(6)
 
-        # Tracker Selection
-        layout.addWidget(QLabel("Backend:"), 0, 0)
-        self._tracker_combo = QComboBox()
-        self._tracker_combo.addItems([
-            "No Tracking (Passthrough / Baseline)",
-            "MediaPipe Face Landmarker (478 pts + 52 Blendshapes)",
-        ])
-        self._tracker_combo.currentIndexChanged.connect(self._on_tracker_changed)
-        layout.addWidget(self._tracker_combo, 0, 1)
+        from cpc.ui.widgets.model_selector import ModelSelectorWidget
 
-        # Model Path Picker
-        self._lbl_model = QLabel("Model Asset (.task):")
-        layout.addWidget(self._lbl_model, 1, 0)
+        self.model_selector = ModelSelectorWidget(self)
+        self.model_selector.model_selection_changed.connect(lambda *_: self.config_changed.emit())
+        layout.addWidget(self.model_selector)
 
-        self._model_edit = QLineEdit()
-        self._model_edit.setPlaceholderText("Path to face_landmarker.task...")
-        self._model_edit.textChanged.connect(lambda: self.config_changed.emit())
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                p = Path(url.toLocalFile())
+                if p.suffix.lower() == ".task":
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
 
-        self._browse_model_btn = QPushButton("Browse...")
-        self._browse_model_btn.clicked.connect(self._browse_model)
+    def dropEvent(self, event: QDropEvent) -> None:
+        for url in event.mimeData().urls():
+            p = Path(url.toLocalFile())
+            if p.suffix.lower() == ".task":
+                from cpc.ui.models import get_model_registry
 
-        model_row = QHBoxLayout()
-        model_row.addWidget(self._model_edit, 1)
-        model_row.addWidget(self._browse_model_btn)
-        layout.addLayout(model_row, 1, 1)
-
-        # Execution Delegate
-        self._lbl_delegate = QLabel("Compute Delegate:")
-        layout.addWidget(self._lbl_delegate, 2, 0)
-
-        self._delegate_combo = QComboBox()
-        self._delegate_combo.addItems([
-            "CPU (Recommended / Validated)",
-            "GPU (Experimental on macOS)",
-        ])
-        self._delegate_combo.currentIndexChanged.connect(lambda: self.config_changed.emit())
-        layout.addWidget(self._delegate_combo, 2, 1)
-
-        self._update_visibility()
-
-    def _on_tracker_changed(self) -> None:
-        self._update_visibility()
-        self.config_changed.emit()
-
-    def _update_visibility(self) -> None:
-        is_mp = (self._tracker_combo.currentIndex() == 1)
-        self._lbl_model.setVisible(is_mp)
-        self._model_edit.setVisible(is_mp)
-        self._browse_model_btn.setVisible(is_mp)
-        self._lbl_delegate.setVisible(is_mp)
-        self._delegate_combo.setVisible(is_mp)
-
-    def _browse_model(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select MediaPipe Face Landmarker Task Model",
-            os.path.expanduser("~"),
-            "Task Models (*.task);;All Files (*)",
-        )
-        if path:
-            self._model_edit.setText(path)
+                reg = get_model_registry()
+                try:
+                    entry = reg.register_custom_model(p, copy_to_managed=True)
+                    self.model_selector.select_model(entry.model_id)
+                    event.acceptProposedAction()
+                    return
+                except (RuntimeError, ValueError, OSError, FileNotFoundError):
+                    continue
 
     def apply_to_config(self, cfg: SessionConfig) -> None:
-        if self._tracker_combo.currentIndex() == 1:
-            cfg.tracker_type = "mediapipe"
-            model_str = self._model_edit.text().strip()
-            cfg.model_path = Path(model_str) if model_str else None
-            cfg.tracker_delegate = "gpu" if self._delegate_combo.currentIndex() == 1 else "cpu"
-        else:
+        mid = self.model_selector.get_selected_model_id()
+        if mid == "null-tracker":
             cfg.tracker_type = "null"
             cfg.model_path = None
             cfg.tracker_delegate = "cpu"
+        else:
+            cfg.tracker_type = "mediapipe"
+            cfg.model_path = self.model_selector.get_resolved_path()
+            cfg.tracker_delegate = self.model_selector.get_selected_delegate()
 
     def load_from_config(self, cfg: SessionConfig) -> None:
-        if cfg.tracker_type == "mediapipe":
-            self._tracker_combo.setCurrentIndex(1)
-            self._model_edit.setText(str(cfg.model_path) if cfg.model_path else "")
-            self._delegate_combo.setCurrentIndex(1 if cfg.tracker_delegate == "gpu" else 0)
+        if cfg.tracker_type == "null":
+            self.model_selector.select_model("null-tracker")
         else:
-            self._tracker_combo.setCurrentIndex(0)
-        self._update_visibility()
+            self.model_selector.set_delegate(cfg.tracker_delegate)
+            if cfg.model_path:
+                from cpc.ui.models import get_model_registry
+
+                reg = get_model_registry()
+                rec_path = reg.resolve_model_path("mediapipe-face-landmarker")
+                if rec_path is not None and cfg.model_path.resolve() == rec_path.resolve():
+                    self.model_selector.select_model("mediapipe-face-landmarker")
+                else:
+                    entry = reg.register_custom_path(cfg.model_path)
+                    self.model_selector.select_model(entry.model_id)
+            else:
+                self.model_selector.select_model("mediapipe-face-landmarker")
+        self.model_selector.refresh_state()
 
 
 class RendererPanel(QGroupBox):
-    """Configuration panel for Character Artwork and 2D Mesh-Warp Renderer."""
+    """Configuration panel for Character Artwork and 2D Mesh-Warp Renderer with Live Gains."""
 
     config_changed = Signal()
     open_character_workspace = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__("Character && Renderer", parent)
+        self.setAcceptDrops(True)
+        self._settings = AppSettings()
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -334,18 +380,23 @@ class RendererPanel(QGroupBox):
         layout.addWidget(self._lbl_char, 1, 0)
 
         self._char_edit = QLineEdit()
-        self._char_edit.setPlaceholderText("Select character reference image (.png, .jpg)...")
-        self._char_edit.textChanged.connect(lambda: self.config_changed.emit())
+        self._char_edit.setPlaceholderText("Select or drop character PNG/JPG...")
+        self._char_edit.textChanged.connect(self._on_char_path_changed)
 
         self._browse_char_btn = QPushButton("Browse...")
         self._browse_char_btn.clicked.connect(self._browse_character)
 
+        self._clear_char_btn = QPushButton("✕")
+        self._clear_char_btn.setMaximumWidth(28)
+        self._clear_char_btn.clicked.connect(self._char_edit.clear)
+
         char_row = QHBoxLayout()
         char_row.addWidget(self._char_edit, 1)
         char_row.addWidget(self._browse_char_btn)
+        char_row.addWidget(self._clear_char_btn)
         layout.addLayout(char_row, 1, 1)
 
-        # Explicit Rig Path Picker
+        # Rig Definition
         self._lbl_rig = QLabel("Rig Definition:")
         layout.addWidget(self._lbl_rig, 2, 0)
 
@@ -361,14 +412,14 @@ class RendererPanel(QGroupBox):
         rig_row.addWidget(self._browse_rig_btn)
         layout.addLayout(rig_row, 2, 1)
 
-        # Expression & Head Gains
+        # Expression & Head Gains with precise DoubleSpinBoxes and Reset
         self._lbl_gains = QLabel("Motion Gains:")
         layout.addWidget(self._lbl_gains, 3, 0)
 
         gains_widget = QWidget()
         g_layout = QVBoxLayout(gains_widget)
         g_layout.setContentsMargins(0, 0, 0, 0)
-        g_layout.setSpacing(4)
+        g_layout.setSpacing(6)
 
         # Expression Gain
         exp_row = QHBoxLayout()
@@ -376,10 +427,16 @@ class RendererPanel(QGroupBox):
         self._exp_slider = QSlider(Qt.Horizontal)
         self._exp_slider.setRange(0, 300)
         self._exp_slider.setValue(100)
-        self._exp_val_lbl = QLabel("1.00x")
-        self._exp_slider.valueChanged.connect(self._on_exp_changed)
+        self._exp_slider.valueChanged.connect(self._on_exp_slider_changed)
         exp_row.addWidget(self._exp_slider, 1)
-        exp_row.addWidget(self._exp_val_lbl)
+
+        self._exp_spin = QDoubleSpinBox()
+        self._exp_spin.setRange(0.0, 3.0)
+        self._exp_spin.setSingleStep(0.05)
+        self._exp_spin.setValue(1.0)
+        self._exp_spin.setSuffix("x")
+        self._exp_spin.valueChanged.connect(self._on_exp_spin_changed)
+        exp_row.addWidget(self._exp_spin)
         g_layout.addLayout(exp_row)
 
         # Head Motion Gain
@@ -388,12 +445,25 @@ class RendererPanel(QGroupBox):
         self._head_slider = QSlider(Qt.Horizontal)
         self._head_slider.setRange(0, 300)
         self._head_slider.setValue(100)
-        self._head_val_lbl = QLabel("1.00x")
-        self._head_slider.valueChanged.connect(self._on_head_changed)
+        self._head_slider.valueChanged.connect(self._on_head_slider_changed)
         head_row.addWidget(self._head_slider, 1)
-        head_row.addWidget(self._head_val_lbl)
-        g_layout.addLayout(head_row)
 
+        self._head_spin = QDoubleSpinBox()
+        self._head_spin.setRange(0.0, 3.0)
+        self._head_spin.setSingleStep(0.05)
+        self._head_spin.setValue(1.0)
+        self._head_spin.setSuffix("x")
+        self._head_spin.valueChanged.connect(self._on_head_spin_changed)
+        head_row.addWidget(self._head_spin)
+
+        # Reset gains button
+        self._reset_gains_btn = QPushButton("↺ Reset")
+        self._reset_gains_btn.setMaximumWidth(60)
+        self._reset_gains_btn.setToolTip("Reset gains to default 1.0x")
+        self._reset_gains_btn.clicked.connect(self._reset_gains)
+        head_row.addWidget(self._reset_gains_btn)
+
+        g_layout.addLayout(head_row)
         layout.addWidget(gains_widget, 3, 1)
 
         # Studio Link Button
@@ -403,12 +473,52 @@ class RendererPanel(QGroupBox):
 
         self._update_visibility()
 
-    def _on_exp_changed(self, val: int) -> None:
-        self._exp_val_lbl.setText(f"{val / 100.0:.2f}x")
+    def _on_exp_slider_changed(self, val: int) -> None:
+        self._exp_spin.blockSignals(True)
+        self._exp_spin.setValue(val / 100.0)
+        self._exp_spin.blockSignals(False)
         self.config_changed.emit()
 
-    def _on_head_changed(self, val: int) -> None:
-        self._head_val_lbl.setText(f"{val / 100.0:.2f}x")
+    def _on_exp_spin_changed(self, val: float) -> None:
+        self._exp_slider.blockSignals(True)
+        self._exp_slider.setValue(int(val * 100))
+        self._exp_slider.blockSignals(False)
+        self.config_changed.emit()
+
+    def _on_head_slider_changed(self, val: int) -> None:
+        self._head_spin.blockSignals(True)
+        self._head_spin.setValue(val / 100.0)
+        self._head_spin.blockSignals(False)
+        self.config_changed.emit()
+
+    def _on_head_spin_changed(self, val: float) -> None:
+        self._head_slider.blockSignals(True)
+        self._head_slider.setValue(int(val * 100))
+        self._head_slider.blockSignals(False)
+        self.config_changed.emit()
+
+    def _reset_gains(self) -> None:
+        self._exp_slider.setValue(100)
+        self._head_slider.setValue(100)
+
+    def _on_char_path_changed(self, text: str) -> None:
+        char_path_str = text.strip()
+        if char_path_str and not self._rig_edit.text().strip():
+            auto_rig = Path(char_path_str).with_suffix(Path(char_path_str).suffix + ".rig.json")
+            if auto_rig.is_file():
+                self._rig_edit.setText(str(auto_rig))
+
+        # Check per-character memory
+        if char_path_str:
+            mem = self._settings.get_character_memory(char_path_str)
+            if mem:
+                if mem.get("rig_path") and Path(mem["rig_path"]).is_file():
+                    self._rig_edit.setText(mem["rig_path"])
+                if "expression_gain" in mem:
+                    self._exp_spin.setValue(float(mem["expression_gain"]))
+                if "head_gain" in mem:
+                    self._head_spin.setValue(float(mem["head_gain"]))
+
         self.config_changed.emit()
 
     def _on_renderer_changed(self) -> None:
@@ -420,35 +530,64 @@ class RendererPanel(QGroupBox):
         self._lbl_char.setVisible(is_rig)
         self._char_edit.setVisible(is_rig)
         self._browse_char_btn.setVisible(is_rig)
+        self._clear_char_btn.setVisible(is_rig)
         self._lbl_rig.setVisible(is_rig)
         self._rig_edit.setVisible(is_rig)
         self._browse_rig_btn.setVisible(is_rig)
         self._lbl_gains.setVisible(is_rig)
         self._exp_slider.setVisible(is_rig)
-        self._exp_val_lbl.setVisible(is_rig)
+        self._exp_spin.setVisible(is_rig)
         self._head_slider.setVisible(is_rig)
-        self._head_val_lbl.setVisible(is_rig)
+        self._head_spin.setVisible(is_rig)
+        self._reset_gains_btn.setVisible(is_rig)
         self._studio_btn.setVisible(is_rig)
 
     def _browse_character(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Character Reference Image",
-            os.path.expanduser("~"),
+            self._settings.get_last_directory(),
             "Image Files (*.png *.jpg *.jpeg *.webp);;All Files (*)",
         )
         if path:
+            self._settings.set_last_directory(path)
+            self._settings.add_recent_item("characters", path)
             self._char_edit.setText(path)
 
     def _browse_rig(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Character Rig Sidecar",
-            os.path.expanduser("~"),
+            self._settings.get_last_directory(),
             "Rig Files (*.rig.json);;All Files (*)",
         )
         if path:
+            self._settings.set_last_directory(path)
             self._rig_edit.setText(path)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                p = Path(url.toLocalFile())
+                if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".json"}:
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        for url in event.mimeData().urls():
+            p = Path(url.toLocalFile())
+            if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                self._renderer_combo.setCurrentIndex(1)
+                self._char_edit.setText(str(p))
+                self._settings.add_recent_item("characters", p)
+                event.acceptProposedAction()
+                return
+            elif p.name.endswith(".rig.json"):
+                self._renderer_combo.setCurrentIndex(1)
+                self._rig_edit.setText(str(p))
+                event.acceptProposedAction()
+                return
 
     def apply_to_config(self, cfg: SessionConfig) -> None:
         if self._renderer_combo.currentIndex() == 1:
@@ -457,8 +596,17 @@ class RendererPanel(QGroupBox):
             cfg.character_path = Path(char_str) if char_str else None
             rig_str = self._rig_edit.text().strip()
             cfg.rig_path = Path(rig_str) if rig_str else None
-            cfg.expression_gain = self._exp_slider.value() / 100.0
-            cfg.head_gain = self._head_slider.value() / 100.0
+            cfg.expression_gain = float(self._exp_spin.value())
+            cfg.head_gain = float(self._head_spin.value())
+
+            # Save per-character memory
+            if cfg.character_path:
+                self._settings.set_character_memory(
+                    cfg.character_path,
+                    cfg.rig_path,
+                    cfg.expression_gain,
+                    cfg.head_gain,
+                )
         else:
             cfg.renderer_type = "passthrough"
             cfg.character_path = None
@@ -471,20 +619,21 @@ class RendererPanel(QGroupBox):
             self._renderer_combo.setCurrentIndex(1)
             self._char_edit.setText(str(cfg.character_path) if cfg.character_path else "")
             self._rig_edit.setText(str(cfg.rig_path) if cfg.rig_path else "")
-            self._exp_slider.setValue(int(cfg.expression_gain * 100))
-            self._head_slider.setValue(int(cfg.head_gain * 100))
+            self._exp_spin.setValue(cfg.expression_gain)
+            self._head_spin.setValue(cfg.head_gain)
         else:
             self._renderer_combo.setCurrentIndex(0)
         self._update_visibility()
 
 
 class OutputsPanel(QGroupBox):
-    """Configuration panel for Live Output destinations (Take recording, MP4, OBS Virtual Camera)."""
+    """Configuration panel for Live Output destinations with timestamp generators and disk space safety."""
 
     config_changed = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__("Output Routing", parent)
+        self._settings = AppSettings()
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -500,12 +649,20 @@ class OutputsPanel(QGroupBox):
         self._cpc_widget = QWidget()
         cpc_row = QHBoxLayout(self._cpc_widget)
         cpc_row.setContentsMargins(0, 0, 0, 0)
+        cpc_row.setSpacing(6)
         self._cpc_edit = QLineEdit()
         self._cpc_edit.setPlaceholderText("Destination file path (e.g. takes/take_01.cpc)...")
         self._cpc_edit.textChanged.connect(lambda: self.config_changed.emit())
+
+        self._cpc_gen_btn = QPushButton("⚡ Auto Name")
+        self._cpc_gen_btn.setToolTip("Generate collision-safe timestamped take name")
+        self._cpc_gen_btn.clicked.connect(self._generate_cpc_filename)
+
         self._cpc_browse_btn = QPushButton("Browse...")
         self._cpc_browse_btn.clicked.connect(self._browse_cpc)
+
         cpc_row.addWidget(self._cpc_edit, 1)
+        cpc_row.addWidget(self._cpc_gen_btn)
         cpc_row.addWidget(self._cpc_browse_btn)
         self._cpc_widget.setVisible(False)
         layout.addWidget(self._cpc_widget)
@@ -518,17 +675,25 @@ class OutputsPanel(QGroupBox):
         self._mp4_widget = QWidget()
         mp4_row = QHBoxLayout(self._mp4_widget)
         mp4_row.setContentsMargins(0, 0, 0, 0)
+        mp4_row.setSpacing(6)
         self._mp4_edit = QLineEdit()
         self._mp4_edit.setPlaceholderText("Destination file path (e.g. captures/render_01.mp4)...")
         self._mp4_edit.textChanged.connect(lambda: self.config_changed.emit())
+
+        self._mp4_gen_btn = QPushButton("⚡ Auto Name")
+        self._mp4_gen_btn.setToolTip("Generate collision-safe timestamped render name")
+        self._mp4_gen_btn.clicked.connect(self._generate_mp4_filename)
+
         self._mp4_browse_btn = QPushButton("Browse...")
         self._mp4_browse_btn.clicked.connect(self._browse_mp4)
+
         mp4_row.addWidget(self._mp4_edit, 1)
+        mp4_row.addWidget(self._mp4_gen_btn)
         mp4_row.addWidget(self._mp4_browse_btn)
         self._mp4_widget.setVisible(False)
         layout.addWidget(self._mp4_widget)
 
-        # 3. Virtual Camera Sink (OBS / Zoom / Discord)
+        # 3. Virtual Camera Sink
         self._vcam_checkbox = QCheckBox("Publish to Virtual Camera (OBS)")
         self._vcam_checkbox.stateChanged.connect(self._on_vcam_toggled)
         layout.addWidget(self._vcam_checkbox)
@@ -536,7 +701,7 @@ class OutputsPanel(QGroupBox):
         self._vcam_widget = QWidget()
         vcam_row = QHBoxLayout(self._vcam_widget)
         vcam_row.setContentsMargins(0, 0, 0, 0)
-        vcam_row.addWidget(QLabel("Output Resolution:"), 0)
+        vcam_row.addWidget(QLabel("Resolution:"), 0)
         self._vcam_size_combo = QComboBox()
         self._vcam_size_combo.addItems(["1280x720 (720p - OBS Default)", "1920x1080 (1080p)", "640x480 (VGA)"])
         self._vcam_size_combo.currentIndexChanged.connect(lambda: self.config_changed.emit())
@@ -544,12 +709,52 @@ class OutputsPanel(QGroupBox):
         self._vcam_widget.setVisible(False)
         layout.addWidget(self._vcam_widget)
 
+        # Output folder tools & disk space info
+        tools_row = QHBoxLayout()
+        self._reveal_takes_btn = QPushButton("📁 Reveal Output Folder")
+        self._reveal_takes_btn.clicked.connect(self._reveal_output_folder)
+        tools_row.addWidget(self._reveal_takes_btn)
+
+        self._lbl_disk = QLabel(self._get_disk_space_str())
+        self._lbl_disk.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        tools_row.addWidget(self._lbl_disk, 1, Qt.AlignRight)
+        layout.addLayout(tools_row)
+
+    def _get_disk_space_str(self) -> str:
+        try:
+            _, _, free = shutil.disk_usage(Path.cwd())
+            free_gb = free / (1024.0 ** 3)
+            return f"Free Disk Space: {free_gb:.1f} GB"
+        except (OSError, ValueError):
+            return ""
+
+    def _generate_cpc_filename(self) -> None:
+        target_dir = Path(self._settings.get_default_output_directory())
+        p = generate_timestamped_filename("take", "cpc", target_dir)
+        self._cpc_edit.setText(str(p))
+
+    def _generate_mp4_filename(self) -> None:
+        target_dir = Path(self._settings.get_default_output_directory())
+        p = generate_timestamped_filename("render", "mp4", target_dir)
+        self._mp4_edit.setText(str(p))
+
+    def _reveal_output_folder(self) -> None:
+        folder = Path(self._settings.get_default_output_directory())
+        folder.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(f"file://{folder.resolve()}")
+
     def _on_cpc_toggled(self, state: int) -> None:
-        self._cpc_widget.setVisible(state == Qt.Checked)
+        is_checked = (state == Qt.Checked)
+        self._cpc_widget.setVisible(is_checked)
+        if is_checked and not self._cpc_edit.text().strip():
+            self._generate_cpc_filename()
         self.config_changed.emit()
 
     def _on_mp4_toggled(self, state: int) -> None:
-        self._mp4_widget.setVisible(state == Qt.Checked)
+        is_checked = (state == Qt.Checked)
+        self._mp4_widget.setVisible(is_checked)
+        if is_checked and not self._mp4_edit.text().strip():
+            self._generate_mp4_filename()
         self.config_changed.emit()
 
     def _on_vcam_toggled(self, state: int) -> None:
@@ -560,24 +765,26 @@ class OutputsPanel(QGroupBox):
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Performance Capture Take",
-            os.path.expanduser("~"),
+            self._settings.get_last_directory(),
             "CPC Captures (*.cpc);;All Files (*)",
         )
         if path:
             if not path.endswith(".cpc"):
                 path += ".cpc"
+            self._settings.set_last_directory(path)
             self._cpc_edit.setText(path)
 
     def _browse_mp4(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Save Rendered Video",
-            os.path.expanduser("~"),
+            self._settings.get_last_directory(),
             "MP4 Video (*.mp4);;All Files (*)",
         )
         if path:
             if not path.endswith(".mp4"):
                 path += ".mp4"
+            self._settings.set_last_directory(path)
             self._mp4_edit.setText(path)
 
     def apply_to_config(self, cfg: SessionConfig) -> None:
@@ -631,12 +838,13 @@ class OutputsPanel(QGroupBox):
 
 
 class AdvancedPanel(QGroupBox):
-    """Configuration panel for Advanced capture controls and execution boundaries."""
+    """Configuration panel for Advanced capture controls, countdowns, and session limits."""
 
     config_changed = Signal()
 
     def __init__(self, parent=None) -> None:
-        super().__init__("Session Limits && Display", parent)
+        super().__init__("Session Limits && Options", parent)
+        self._settings = AppSettings()
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -644,8 +852,15 @@ class AdvancedPanel(QGroupBox):
         layout.setContentsMargins(12, 14, 12, 12)
         layout.setSpacing(8)
 
+        # Countdown Timer Option
+        layout.addWidget(QLabel("Countdown:"), 0, 0)
+        self._countdown_combo = QComboBox()
+        self._countdown_combo.addItems(["Immediate (No countdown)", "3 Seconds Countdown", "5 Seconds Countdown"])
+        self._countdown_combo.currentIndexChanged.connect(self._on_countdown_changed)
+        layout.addWidget(self._countdown_combo, 0, 1)
+
         # Stop After Frame Limit
-        layout.addWidget(QLabel("Stop After:"), 0, 0)
+        layout.addWidget(QLabel("Stop After:"), 1, 0)
         self._frames_combo = QComboBox()
         self._frames_combo.addItems([
             "Unlimited (Stop manually)",
@@ -656,20 +871,38 @@ class AdvancedPanel(QGroupBox):
             "Custom Frame Count...",
         ])
         self._frames_combo.currentIndexChanged.connect(self._on_frames_changed)
-        layout.addWidget(self._frames_combo, 0, 1)
+        layout.addWidget(self._frames_combo, 1, 1)
 
         self._custom_frames_spin = QSpinBox()
         self._custom_frames_spin.setRange(1, 1000000)
         self._custom_frames_spin.setValue(150)
         self._custom_frames_spin.valueChanged.connect(lambda: self.config_changed.emit())
         self._custom_frames_spin.setVisible(False)
-        layout.addWidget(self._custom_frames_spin, 1, 1)
+        layout.addWidget(self._custom_frames_spin, 2, 1)
 
         # Live Preview Display Toggle
-        self._preview_checkbox = QCheckBox("Show Live Character Preview Window")
+        self._preview_checkbox = QCheckBox("Show Live Character Preview Canvas")
         self._preview_checkbox.setChecked(True)
         self._preview_checkbox.stateChanged.connect(lambda: self.config_changed.emit())
-        layout.addWidget(self._preview_checkbox, 2, 0, 1, 2)
+        layout.addWidget(self._preview_checkbox, 3, 0, 1, 2)
+
+        # Restore countdown setting
+        cd = self._settings.get_countdown_seconds()
+        if cd == 3:
+            self._countdown_combo.setCurrentIndex(1)
+        elif cd == 5:
+            self._countdown_combo.setCurrentIndex(2)
+        else:
+            self._countdown_combo.setCurrentIndex(0)
+
+    def _on_countdown_changed(self, idx: int) -> None:
+        if idx == 1:
+            self._settings.set_countdown_seconds(3)
+        elif idx == 2:
+            self._settings.set_countdown_seconds(5)
+        else:
+            self._settings.set_countdown_seconds(0)
+        self.config_changed.emit()
 
     def _on_frames_changed(self, idx: int) -> None:
         self._custom_frames_spin.setVisible(idx == 5)

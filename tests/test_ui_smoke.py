@@ -29,7 +29,7 @@ def test_main_window_construction_and_tab_navigation(qapp):
     # Verify all 5 workspaces exist
     assert window._tabs.count() == 5
     assert window._tabs.tabText(0) == "Studio (Live)"
-    assert "Character" in window._tabs.tabText(1) and "Rig" in window._tabs.tabText(1)
+    assert "Character" in window._tabs.tabText(1)
     assert window._tabs.tabText(2) == "Takes"
     assert window._tabs.tabText(3) == "Diagnostics"
     assert "Settings" in window._tabs.tabText(4)

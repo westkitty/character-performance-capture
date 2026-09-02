@@ -7,7 +7,7 @@ import pytest
 pytest.importorskip("PySide6")
 
 from cpc.session import SessionConfig
-from cpc.ui.settings import AppSettings
+from cpc.ui.settings import AppSettings, generate_timestamped_filename
 
 
 def test_app_settings_preset_lifecycle(tmp_path):
@@ -33,6 +33,25 @@ def test_app_settings_preset_lifecycle(tmp_path):
     # Save preset
     settings.save_preset(preset_name, cfg)
     assert preset_name in settings.list_presets()
+    assert settings.is_config_matching_preset(preset_name, cfg) is True
+
+    # Modified config check
+    cfg_mod = SessionConfig(
+        source_type="camera",
+        camera_index=1,
+    )
+    assert settings.is_config_matching_preset(preset_name, cfg_mod) is False
+
+    # Duplicate preset
+    dup_name = "test_custom_studio_preset_copy"
+    assert settings.duplicate_preset(preset_name, dup_name) is True
+    assert dup_name in settings.list_presets()
+
+    # Rename preset
+    renamed_name = "test_custom_studio_preset_renamed"
+    assert settings.rename_preset(dup_name, renamed_name) is True
+    assert dup_name not in settings.list_presets()
+    assert renamed_name in settings.list_presets()
 
     # Load preset
     loaded = settings.load_preset(preset_name)
@@ -57,9 +76,11 @@ def test_app_settings_preset_lifecycle(tmp_path):
     imported_name = settings.import_preset_json(export_file)
     assert imported_name == preset_name
 
-    # Delete preset
+    # Delete presets
     settings.delete_preset(preset_name)
+    settings.delete_preset(renamed_name)
     assert preset_name not in settings.list_presets()
+    assert renamed_name not in settings.list_presets()
 
 
 def test_app_settings_recent_items(tmp_path):
@@ -89,8 +110,51 @@ def test_app_settings_recent_items(tmp_path):
     assert len(settings.get_recent_items("videos")) == 0
 
 
-def test_app_settings_first_run_flag():
+def test_app_settings_character_memory_and_favorites(tmp_path):
     settings = AppSettings()
+    char_file = tmp_path / "hero.png"
+    rig_file = tmp_path / "hero.png.rig.json"
+    char_file.touch()
+    rig_file.touch()
+
+    # Character Memory
+    settings.set_character_memory(char_file, rig_file, exp_gain=1.4, head_gain=0.75)
+    mem = settings.get_character_memory(char_file)
+    assert mem is not None
+    assert mem["rig_path"] == str(rig_file.resolve())
+    assert mem["expression_gain"] == 1.4
+    assert mem["head_gain"] == 0.75
+
+    # Favorites
+    assert settings.is_favorite("characters", char_file) is False
+    assert settings.toggle_favorite("characters", char_file) is True
+    assert settings.is_favorite("characters", char_file) is True
+    assert str(char_file) in settings.list_favorites("characters")
+    assert settings.toggle_favorite("characters", char_file) is False
+    assert settings.is_favorite("characters", char_file) is False
+
+
+def test_generate_timestamped_filename(tmp_path):
+    p1 = generate_timestamped_filename("take", "cpc", tmp_path)
+    assert p1.suffix == ".cpc"
+    assert p1.parent == tmp_path
+    assert "take_" in p1.name
+
+    # Touch p1 to simulate existing file and prove collision avoidance
+    p1.touch()
+    p2 = generate_timestamped_filename("take", "cpc", tmp_path)
+    assert p2 != p1
+    assert p2.name.endswith("_01.cpc") or p2.name != p1.name
+
+
+def test_app_settings_preferences():
+    settings = AppSettings()
+    settings.set_countdown_seconds(5)
+    assert settings.get_countdown_seconds() == 5
+
+    settings.set_countdown_seconds(0)
+    assert settings.get_countdown_seconds() == 0
+
     settings.set_first_run_completed(False)
     assert settings.is_first_run_completed() is False
 

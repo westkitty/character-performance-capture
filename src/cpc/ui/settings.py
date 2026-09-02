@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import json
+from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 from PySide6.QtCore import QSettings
 
@@ -12,8 +14,27 @@ APPLICATION_NAME = "CharacterPerformanceCapture"
 PRESET_SCHEMA_VERSION = 1
 
 
+def generate_timestamped_filename(prefix: str, ext: str, directory: str | Path | None = None) -> Path:
+    """Generate a deterministic, human-readable, non-colliding timestamped output file path."""
+    target_dir = Path(directory) if directory else Path.cwd()
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.now(UTC).strftime("%Y-%m-%d_%H%M%S")
+    base_name = f"{prefix}_{timestamp}"
+    ext = ext.lstrip(".")
+    candidate = target_dir / f"{base_name}.{ext}"
+
+    # Handle rapid successive creations with counter suffix
+    counter = 1
+    while candidate.exists():
+        candidate = target_dir / f"{base_name}_{counter:02d}.{ext}"
+        counter += 1
+
+    return candidate
+
+
 class AppSettings:
-    """Manages local UI preferences, presets, recents, and layout persistence using QSettings."""
+    """Manages local UI preferences, presets, recents, character memory, and layout persistence using QSettings."""
 
     def __init__(self) -> None:
         self._settings = QSettings(ORGANIZATION_NAME, APPLICATION_NAME)
@@ -105,6 +126,14 @@ class AppSettings:
         except (ValueError, TypeError):
             return []
 
+    def get_preset_data(self, name: str) -> dict[str, Any] | None:
+        raw = self._settings.value("presets_json", "{}")
+        try:
+            presets = json.loads(str(raw))
+            return presets.get(name)
+        except (ValueError, TypeError):
+            return None
+
     def save_preset(self, name: str, cfg: SessionConfig) -> None:
         raw = self._settings.value("presets_json", "{}")
         try:
@@ -176,6 +205,60 @@ class AppSettings:
         except (ValueError, TypeError):
             pass
 
+    def duplicate_preset(self, src_name: str, dst_name: str) -> bool:
+        data = self.get_preset_data(src_name)
+        if data is None:
+            return False
+        new_data = dict(data)
+        new_data["name"] = dst_name
+        raw = self._settings.value("presets_json", "{}")
+        try:
+            presets = json.loads(str(raw))
+            presets[dst_name] = new_data
+            self._settings.setValue("presets_json", json.dumps(presets))
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    def rename_preset(self, old_name: str, new_name: str) -> bool:
+        if old_name == new_name:
+            return True
+        data = self.get_preset_data(old_name)
+        if data is None:
+            return False
+        self.delete_preset(old_name)
+        data["name"] = new_name
+        raw = self._settings.value("presets_json", "{}")
+        try:
+            presets = json.loads(str(raw)) if raw else {}
+            presets[new_name] = data
+            self._settings.setValue("presets_json", json.dumps(presets))
+            return True
+        except (ValueError, TypeError):
+            return False
+
+    def is_config_matching_preset(self, name: str, cfg: SessionConfig) -> bool:
+        saved_cfg = self.load_preset(name)
+        if saved_cfg is None:
+            return False
+        return (
+            cfg.source_type == saved_cfg.source_type
+            and cfg.camera_index == saved_cfg.camera_index
+            and cfg.video_path == saved_cfg.video_path
+            and cfg.loop_video == saved_cfg.loop_video
+            and cfg.mirror == saved_cfg.mirror
+            and cfg.tracker_type == saved_cfg.tracker_type
+            and cfg.model_path == saved_cfg.model_path
+            and cfg.tracker_delegate == saved_cfg.tracker_delegate
+            and cfg.renderer_type == saved_cfg.renderer_type
+            and cfg.character_path == saved_cfg.character_path
+            and cfg.rig_path == saved_cfg.rig_path
+            and abs(cfg.expression_gain - saved_cfg.expression_gain) < 0.001
+            and abs(cfg.head_gain - saved_cfg.head_gain) < 0.001
+            and cfg.virtual_camera == saved_cfg.virtual_camera
+            and cfg.vcam_size == saved_cfg.vcam_size
+        )
+
     def export_preset_json(self, name: str, dest_path: Path) -> bool:
         raw = self._settings.value("presets_json", "{}")
         try:
@@ -190,7 +273,9 @@ class AppSettings:
     def import_preset_json(self, src_path: Path) -> str | None:
         try:
             data = json.loads(src_path.read_text(encoding="utf-8"))
-            name = data.get("name") or src_path.stem
+            if not isinstance(data, dict):
+                return None
+            name = str(data.get("name") or src_path.stem)
             raw = self._settings.value("presets_json", "{}")
             presets = json.loads(str(raw)) if raw else {}
             presets[name] = data
@@ -198,6 +283,80 @@ class AppSettings:
             return name
         except (ValueError, TypeError, OSError):
             return None
+
+    # -----------------------------------------------------------------
+    # Per-Character Memory (Gains & Rig Bindings)
+    # -----------------------------------------------------------------
+    def set_character_memory(
+        self,
+        char_path: str | Path,
+        rig_path: str | Path | None = None,
+        exp_gain: float = 1.0,
+        head_gain: float = 1.0,
+    ) -> None:
+        key = "character_memory_json"
+        raw = self._settings.value(key, "{}")
+        try:
+            memory = json.loads(str(raw))
+        except (ValueError, TypeError):
+            memory = {}
+
+        p_str = str(Path(char_path).resolve())
+        memory[p_str] = {
+            "rig_path": str(Path(rig_path).resolve()) if rig_path else None,
+            "expression_gain": exp_gain,
+            "head_gain": head_gain,
+        }
+        self._settings.setValue(key, json.dumps(memory))
+
+    def get_character_memory(self, char_path: str | Path) -> dict[str, Any] | None:
+        key = "character_memory_json"
+        raw = self._settings.value(key, "{}")
+        try:
+            memory = json.loads(str(raw))
+            p_str = str(Path(char_path).resolve())
+            return memory.get(p_str)
+        except (ValueError, TypeError):
+            return None
+
+    # -----------------------------------------------------------------
+    # Favorites (Characters, Presets)
+    # -----------------------------------------------------------------
+    def toggle_favorite(self, category: str, item_id: str | Path) -> bool:
+        key = f"favorites_{category}"
+        raw = self._settings.value(key, "[]")
+        try:
+            favs: list[str] = json.loads(str(raw))
+        except (ValueError, TypeError):
+            favs = []
+
+        item_str = str(item_id)
+        if item_str in favs:
+            favs.remove(item_str)
+            result = False
+        else:
+            favs.append(item_str)
+            result = True
+
+        self._settings.setValue(key, json.dumps(favs))
+        return result
+
+    def is_favorite(self, category: str, item_id: str | Path) -> bool:
+        key = f"favorites_{category}"
+        raw = self._settings.value(key, "[]")
+        try:
+            favs: list[str] = json.loads(str(raw))
+            return str(item_id) in favs
+        except (ValueError, TypeError):
+            return False
+
+    def list_favorites(self, category: str) -> list[str]:
+        key = f"favorites_{category}"
+        raw = self._settings.value(key, "[]")
+        try:
+            return json.loads(str(raw))
+        except (ValueError, TypeError):
+            return []
 
     # -----------------------------------------------------------------
     # Recent Items (Videos, Characters, Takes)
@@ -235,6 +394,21 @@ class AppSettings:
             self._settings.remove("recent_videos")
             self._settings.remove("recent_characters")
             self._settings.remove("recent_takes")
+
+    # -----------------------------------------------------------------
+    # Countdown & Output Preferences
+    # -----------------------------------------------------------------
+    def get_countdown_seconds(self) -> int:
+        return int(self._settings.value("countdown_seconds", 0))
+
+    def set_countdown_seconds(self, seconds: int) -> None:
+        self._settings.setValue("countdown_seconds", max(0, min(10, seconds)))
+
+    def get_default_output_directory(self) -> str:
+        return str(self._settings.value("default_output_directory", str(Path.cwd() / "takes")))
+
+    def set_default_output_directory(self, path: str | Path) -> None:
+        self._settings.setValue("default_output_directory", str(Path(path).resolve()))
 
     # -----------------------------------------------------------------
     # Layout & General Preferences
