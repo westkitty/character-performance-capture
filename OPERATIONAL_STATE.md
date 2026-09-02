@@ -7,11 +7,11 @@
   "project_name": "Character Performance Capture",
   "project_root": "westkitty/character-performance-capture",
   "artifact_path": null,
-  "state_revision": 12,
+  "state_revision": 13,
   "last_updated": "2026-09-02",
   "current_baseline": {
-    "identity": "CPC 1.0.0 with Desktop Studio GUI (cpc-ui) on branch feat/desktop-ui; 98 regression tests; UI parity registry verified; ruleset 22061363 active.",
-    "state": "production-v1",
+    "identity": "CPC 1.1.0 with Production Creator Studio GUI (cpc-ui); 105 regression tests; backpressure handling; session presets; performance mode; command palette; full native Mac verification; ruleset 22061363 active.",
+    "state": "production-v1.1",
     "last_verified": "2026-09-02"
   },
   "scope_boundaries": [
@@ -91,6 +91,7 @@ The project is a clean-room implementation with a testable headless core. The pr
 - **VER-023 — Virtual-camera external consumer receive proof:** CPC streaming live 1280x720 character frames to OBS Virtual Camera concurrently received by an external consumer at 30.29 FPS across 60 sampled frames with continuous frame differences and zero buffer size mismatch.
 - **VER-024 — Relative head rotation calibration & HighGUI macOS context fix:** Head rotation is computed relative to calibrated neutral pose so performer resting posture does not permanently deform the character; HighGUI preview window is initialized cleanly before GL/Metal context creation. Expanded test suite to 77 passing tests.
 - **VER-025 — Desktop Studio GUI (`cpc-ui`):** Local-first PySide6 / Qt creator studio featuring Live Studio (webcam/video ingest, MediaPipe tracking, rig-warp render, live telemetry, `.cpc` & MP4 recording, OBS virtual camera streaming), Character & Rig derivation/visualizer, Takes Inspector, Diagnostics Studio, Settings/About readiness dashboard, 100% CLI parity registry, background QThread workers, and 98 passing unit/smoke tests.
+- **VER-026 — Production Creator Studio Hardening & Verification (CPC 1.1.0):** Elevated semantic dark creator design system; full backpressure handling and display frame coalescing without dropping recording streams; explicit QImage memory buffer ownership safety; session token lifecycle tracking and multi-cycle restart proof; named session presets (save/load/export/import JSON); recent items management; distraction-free Performance Mode (`Cmd+P`) with sleek live HUD; Spotlight-style Quick Actions / Command Palette (`Cmd+K`); dismissible first-run onboarding; post-session summary drawer with Finder reveal and Takes Studio inspection; interactive wireframe visualizer with overwrite protection; 105 automated regression tests passing across all suites.
 
 ## 6. Known Not Working
 

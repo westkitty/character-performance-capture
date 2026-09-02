@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
+    QApplication,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -27,6 +29,7 @@ class TakesWorkspace(QWidget):
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self._current_take_path: Path | None = None
         self._init_ui()
 
     def _init_ui(self) -> None:
@@ -36,7 +39,7 @@ class TakesWorkspace(QWidget):
 
         # Header banner
         header_banner = QFrame()
-        header_banner.setStyleSheet("background-color: #1e1e24; border: 1px solid #27272a; border-radius: 6px; padding: 12px;")
+        header_banner.setStyleSheet("background-color: #16161d; border: 1px solid #23232c; border-radius: 8px; padding: 12px;")
         h_layout = QVBoxLayout(header_banner)
         h_layout.setContentsMargins(8, 8, 8, 8)
         h_layout.setSpacing(4)
@@ -52,7 +55,7 @@ class TakesWorkspace(QWidget):
             "Privacy Note: CPC performance captures store facial landmark coordinates, head rotation matrices, "
             "and 52 blendshape coefficients. Camera pixels are never recorded or stored in .cpc files."
         )
-        privacy_notice.setStyleSheet("color: #38bdf8; font-size: 12px;")
+        privacy_notice.setStyleSheet("color: #60a5fa; font-size: 12px;")
         privacy_notice.setWordWrap(True)
         h_layout.addWidget(privacy_notice)
 
@@ -77,7 +80,7 @@ class TakesWorkspace(QWidget):
         layout.addLayout(picker_bar)
 
         # Inspection results grid
-        results_group = QGroupBox("Capture Metadata & Integrity")
+        results_group = QGroupBox("Capture Metadata && Integrity")
         grid = QGridLayout(results_group)
         grid.setContentsMargins(14, 18, 14, 14)
         grid.setSpacing(10)
@@ -103,6 +106,16 @@ class TakesWorkspace(QWidget):
         self._json_view.setPlaceholderText("Inspection summary output...")
         v_layout.addWidget(self._json_view)
 
+        btn_row = QHBoxLayout()
+        self._copy_btn = QPushButton("Copy Report JSON")
+        self._copy_btn.clicked.connect(self._copy_report_json)
+        self._reveal_btn = QPushButton("Reveal in Finder")
+        self._reveal_btn.clicked.connect(self._reveal_in_finder)
+        btn_row.addWidget(self._copy_btn)
+        btn_row.addWidget(self._reveal_btn)
+        btn_row.addStretch(1)
+        v_layout.addLayout(btn_row)
+
         layout.addWidget(viewer_group, 1)
 
     def _add_field(self, layout: QGridLayout, row: int, col: int, label: str, default: str) -> QLabel:
@@ -123,7 +136,7 @@ class TakesWorkspace(QWidget):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Open Performance Capture Take",
-            str(Path.home()),
+            os.path.expanduser("~"),
             "CPC Takes (*.cpc *.partial);;All Files (*)",
         )
         if file_path:
@@ -147,6 +160,7 @@ class TakesWorkspace(QWidget):
             QMessageBox.critical(self, "Inspection Error", f"Failed to inspect take: {exc}")
             return
 
+        self._current_take_path = path
         status_text = "COMPLETE TAKE" if capture.complete else "PARTIAL / RECOVERABLE"
         color = "#10b981" if capture.complete else "#f59e0b"
         self._lbl_status.setText(status_text)
@@ -181,6 +195,16 @@ class TakesWorkspace(QWidget):
             "file_size_bytes": path.stat().st_size,
         }
         self._json_view.setText(json.dumps(report_dict, indent=2))
+
+    def _copy_report_json(self) -> None:
+        text = self._json_view.toPlainText().strip()
+        if text:
+            QApplication.clipboard().setText(text)
+            QMessageBox.information(self, "Copied", "Report JSON copied to clipboard.")
+
+    def _reveal_in_finder(self) -> None:
+        if self._current_take_path and self._current_take_path.is_file():
+            QDesktopServices.openUrl(f"file://{self._current_take_path.parent.resolve()}")
 
     def inspect_path(self, path: Path) -> None:
         self._path_edit.setText(str(path))

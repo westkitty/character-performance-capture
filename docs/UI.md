@@ -2,7 +2,7 @@
 
 **Character Performance Capture (CPC)** includes a local-first, creator-grade desktop application built with PySide6 / Qt for Python.
 
-The desktop studio provides full capability parity with the `cpc` command-line tool, enabling performers, animators, and technical directors to operate capture sessions, derive character rigs, inspect take records, and run hardware diagnostics without terminal commands.
+The desktop studio provides complete capability parity with the `cpc` command-line tool, enabling performers, animators, streamers, and technical directors to operate live capture sessions, manage session presets, derive character rigs, inspect take records, and run hardware diagnostics without terminal commands.
 
 ---
 
@@ -41,9 +41,12 @@ python -m cpc.ui.app
 The application is structured into 5 dedicated creator workspaces:
 
 ### 1. Studio (Live)
-The primary live performance capture and preview hub.
+The primary live performance capture, preview, and streaming hub.
+* **Preflight Readiness Summary**: Live indicator verifying Source, Tracker, Character, and Output settings before launching a session.
+* **Session Presets**: Save, load, rename, delete, import, and export named local configuration presets (e.g. "OBS Streaming 1080p", "High-Sensitivity Facial Rig", "Video Benchmark").
+* **Performance Mode (`Cmd+P`)**: Distraction-free full-preview canvas view with minimal live HUD overlays (Active state, Rec badges, VCam status, FPS) and quick-stop control.
 * **Input Source**: Select live connected cameras (with camera index, custom width/height/FPS) or video files (with looping and horizontal mirroring).
-* **Performance Tracker**: Select between MediaPipe Face Landmarker (478 landmarks + 52 ARKit blendshapes) or Null benchmark tracker. Configure model path and execution delegate (`cpu` or `gpu`).
+* **Performance Tracker**: Select between MediaPipe Face Landmarker (478 landmarks + 52 ARKit blendshapes) or Null benchmark tracker. Configure model path and compute delegate (`cpu` or `gpu`).
 * **Renderer & Character**: Choose between 2D Rig-Warp Mesh rendering or Passthrough preview. Select character reference images and custom `.rig.json` definitions.
 * **Expression & Head Gains**: Real-time gain multipliers for mouth/brow expressiveness and head pose tracking.
 * **Outputs & Recording**:
@@ -51,13 +54,14 @@ The primary live performance capture and preview hub.
   * **Rendered MP4 Video**: Record real-time composited character output.
   * **Virtual Camera**: Stream rendered output live into OBS Studio, Zoom, Discord, or Google Meet with selectable resolution (e.g., 1280x720, 1920x1080).
 * **Live Telemetry & Preview**: Aspect-preserving preview with real-time FPS, inference latency, render latency, tracking rate, and active output badges.
-* **Command Preview**: Inspect the exact equivalent CLI command string in real time and copy it to the clipboard with one click.
+* **Session Summary Card**: Clean post-session summary providing total frames, duration, effective FPS, with direct "Reveal in Finder" and "Open in Takes Studio" actions.
+* **Activity & Technical Details Drawer**: Non-intrusive status drawer with one-click "Copy Technical Details" for diagnostics and troubleshooting.
 
 ### 2. Character & Rig Studio
 Interactive character mesh derivation and inspection workspace.
 * **Reference Image Loader**: Load PNG, JPG, or WebP character artwork.
 * **Automatic Rig Derivation**: Detect facial landmarks from character artwork and compute optimal Delaunay triangulation meshes.
-* **Rig Sidecar Generation**: Save and export deterministic `.rig.json` definition files.
+* **Rig Sidecar Generation**: Save and export deterministic `.rig.json` definition files with overwrite protection.
 * **Interactive Wireframe Overlay**: Visual inspector displaying landmark points and convex hull boundary over character artwork.
 * **One-Click Studio Promotion**: Promotes the derived character and rig directly into the Live Studio.
 
@@ -66,7 +70,7 @@ Inspect, validate, and verify `.cpc` performance capture recordings.
 * **Header & Format Validation**: Verify schema version (`v1`), tracker identity, profile, and UTC timestamp.
 * **Performance Metrics**: View frame count, total duration, effective recording FPS, and file size.
 * **Completion Status**: Distinguish complete takes from partial/interrupted recordings.
-* **JSON Metadata Inspection**: View and copy formatted take metadata.
+* **JSON Metadata Inspection**: View, copy, and export formatted take metadata, with "Reveal in Finder" action.
 
 ### 4. Diagnostics Studio
 Hardware benchmarking and subsystem validation suite (GUI equivalent of `cpc --doctor`).
@@ -82,13 +86,22 @@ Hardware benchmarking and subsystem validation suite (GUI equivalent of `cpc --d
 
 ---
 
-## 4. Keyboard Shortcuts
+## 4. Keyboard Shortcuts & Quick Actions
 
-| Shortcut | Action |
-| :--- | :--- |
-| `Space` | Start / Stop Live Capture Session (when not editing text) |
-| `Esc` | Stop Active Live Capture Session |
-| `Cmd+,` / `Ctrl+,` | Open Settings / About |
+| Shortcut | Action | Scope |
+| :--- | :--- | :--- |
+| `Cmd+K` / `Ctrl+K` | Open Quick Actions / Command Palette | Global |
+| `Space` | Start / Stop Live Capture Session | Global (when not editing text) |
+| `Cmd+P` / `Ctrl+P` | Toggle Performance Mode (Full Canvas Preview) | Global |
+| `Cmd+1` / `Ctrl+1` | Switch to Studio (Live) Workspace | Global |
+| `Cmd+2` / `Ctrl+2` | Switch to Character & Rig Studio | Global |
+| `Cmd+3` / `Ctrl+3` | Switch to Takes Inspector | Global |
+| `Cmd+4` / `Ctrl+4` | Switch to Diagnostics Studio | Global |
+| `Cmd+5` / `Ctrl+5` | Switch to Settings / About | Global |
+| `Cmd+O` / `Ctrl+O` | Open Performer Video File | Global |
+| `Cmd+Shift+O` / `Ctrl+Shift+O` | Open Character Artwork | Global |
+| `Cmd+Shift+C` / `Ctrl+Shift+C` | Copy Equivalent CLI Terminal Command | Global |
+| `Cmd+,` / `Ctrl+,` | Open Preferences / Settings | Global |
 
 ---
 

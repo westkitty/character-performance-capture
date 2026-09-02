@@ -161,7 +161,7 @@ class DiagnosticsWorkspace(QWidget):
         r_layout.setSpacing(12)
 
         # System info group
-        sys_group = QGroupBox("System & Hardware Environment")
+        sys_group = QGroupBox("System && Hardware Environment")
         sys_grid = QGridLayout(sys_group)
         self._sys_os = self._add_field(sys_grid, 0, 0, "OS / Arch:", "--")
         self._sys_macos = self._add_field(sys_grid, 0, 1, "macOS Version:", "--")
@@ -180,7 +180,7 @@ class DiagnosticsWorkspace(QWidget):
         r_layout.addWidget(priv_group)
 
         # Source probe group
-        src_group = QGroupBox("Source Timing & Negotiation")
+        src_group = QGroupBox("Source Timing && Negotiation")
         src_grid = QGridLayout(src_group)
         self._src_backend = self._add_field(src_grid, 0, 0, "Backend / Kind:", "--")
         self._src_res = self._add_field(src_grid, 0, 1, "Negotiated Size:", "--")

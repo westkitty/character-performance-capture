@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import platform
+import sys
 import time
 import traceback
 from contextlib import ExitStack
@@ -22,7 +24,7 @@ from cpc.session import (
 
 
 class SessionWorker(QThread):
-    """Executes the live capture/tracker/renderer loop on a dedicated thread."""
+    """Executes the live capture/tracker/renderer loop on a dedicated background thread."""
 
     frame_ready = Signal(object, object, object)  # (bgr_frame: np.ndarray, performance_frame, metrics)
     telemetry_updated = Signal(dict)
@@ -30,9 +32,10 @@ class SessionWorker(QThread):
     error_occurred = Signal(str, str)  # (user_message, technical_details)
     session_finished = Signal()
 
-    def __init__(self, config: SessionConfig, parent=None) -> None:
+    def __init__(self, config: SessionConfig, session_token: int = 0, parent=None) -> None:
         super().__init__(parent)
         self.config = config
+        self.session_token = session_token
         self._running = True
 
     def stop(self) -> None:
@@ -51,7 +54,13 @@ class SessionWorker(QThread):
             pipeline = PerformancePipeline(renderer, tracker=tracker)
         except (RuntimeError, ValueError, FileNotFoundError, OSError, TypeError, AttributeError) as exc:
             user_msg = f"Failed to initialize session components: {exc}"
-            self.error_occurred.emit(user_msg, traceback.format_exc())
+            tech_details = (
+                f"Component Initialization Error: {exc}\n"
+                f"Platform: {platform.platform()} (Python {sys.version.split()[0]})\n"
+                f"Config: {self.config}\n\n"
+                f"{traceback.format_exc()}"
+            )
+            self.error_occurred.emit(user_msg, tech_details)
             self.state_changed.emit("error")
             self.session_finished.emit()
             return
@@ -175,7 +184,13 @@ class SessionWorker(QThread):
         except (RuntimeError, ValueError, OSError, cv2.error, KeyError, AttributeError) as exc:
             if self._running:
                 user_msg = f"Capture loop encountered an error: {exc}"
-                self.error_occurred.emit(user_msg, traceback.format_exc())
+                tech_details = (
+                    f"Runtime Capture Loop Error: {exc}\n"
+                    f"Platform: {platform.platform()} (Python {sys.version.split()[0]})\n"
+                    f"Config: {self.config}\n\n"
+                    f"{traceback.format_exc()}"
+                )
+                self.error_occurred.emit(user_msg, tech_details)
                 self.state_changed.emit("error")
         finally:
             self.state_changed.emit("stopping")
@@ -204,7 +219,12 @@ class DiagnosticsWorker(QThread):
             self.probe_finished.emit(report)
         except (RuntimeError, ValueError, FileNotFoundError, OSError, TypeError) as exc:
             user_msg = f"Diagnostics probe failed: {exc}"
-            self.error_occurred.emit(user_msg, traceback.format_exc())
+            tech_details = (
+                f"Diagnostics Error: {exc}\n"
+                f"Platform: {platform.platform()} (Python {sys.version.split()[0]})\n"
+                f"{traceback.format_exc()}"
+            )
+            self.error_occurred.emit(user_msg, tech_details)
 
 
 class DeriveRigWorker(QThread):
@@ -236,4 +256,10 @@ class DeriveRigWorker(QThread):
             self.rig_derived.emit(rig, str(self.rig_path))
         except (RuntimeError, ValueError, FileNotFoundError, OSError, TypeError) as exc:
             user_msg = f"Failed to derive character rig: {exc}"
-            self.error_occurred.emit(user_msg, traceback.format_exc())
+            tech_details = (
+                f"Rig Derivation Error: {exc}\n"
+                f"Character: {self.character_path}\n"
+                f"Model: {self.model_path}\n"
+                f"{traceback.format_exc()}"
+            )
+            self.error_occurred.emit(user_msg, tech_details)

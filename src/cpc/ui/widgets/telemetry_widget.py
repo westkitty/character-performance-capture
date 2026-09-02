@@ -44,7 +44,7 @@ class TelemetryWidget(QWidget):
         layout.addWidget(source_group)
 
         # 3. Tracker Group
-        tracker_group = QGroupBox("Tracker & Performance")
+        tracker_group = QGroupBox("Tracker && Performance")
         trk_layout = QGridLayout(tracker_group)
         trk_layout.setContentsMargins(10, 14, 10, 10)
         trk_layout.setSpacing(6)

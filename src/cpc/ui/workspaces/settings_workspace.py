@@ -45,7 +45,7 @@ class SettingsWorkspace(QWidget):
         # -------------------------------------------------------------
         # 1. Dependency & Hardware Readiness
         # -------------------------------------------------------------
-        readiness_group = QGroupBox("System & Dependency Readiness")
+        readiness_group = QGroupBox("System && Dependency Readiness")
         r_grid = QGridLayout(readiness_group)
         r_grid.setContentsMargins(14, 18, 14, 14)
         r_grid.setSpacing(8)
@@ -91,7 +91,7 @@ class SettingsWorkspace(QWidget):
         # -------------------------------------------------------------
         # 2. Local Preferences & Storage
         # -------------------------------------------------------------
-        pref_group = QGroupBox("Preferences & Local State")
+        pref_group = QGroupBox("Preferences && Local State")
         p_layout = QVBoxLayout(pref_group)
         p_layout.setContentsMargins(14, 18, 14, 14)
         p_layout.setSpacing(8)

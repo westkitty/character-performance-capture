@@ -110,7 +110,7 @@ def test_live_workspace_interaction(qapp, tmp_path):
     assert workspace.start_btn.isEnabled()
 
     # Change to video mode without file -> should disable start button
-    workspace.source_panel._radio_video.setChecked(True)
+    workspace.source_panel._combo_source_type.setCurrentIndex(1)
     assert not workspace.start_btn.isEnabled()
     assert not workspace._validation_banner.isHidden()
 
