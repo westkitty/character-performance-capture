@@ -1,10 +1,9 @@
-from pathlib import Path
+from __future__ import annotations
 
 import numpy as np
 import pytest
 
 pytest.importorskip("PySide6")
-from PySide6.QtWidgets import QApplication
 
 from cpc.rig import CharacterRig
 from cpc.session import SessionConfig
@@ -15,14 +14,6 @@ from cpc.ui.workspaces.diagnostics_workspace import DiagnosticsWorkspace
 from cpc.ui.workspaces.live_workspace import LiveWorkspace
 from cpc.ui.workspaces.settings_workspace import SettingsWorkspace
 from cpc.ui.workspaces.takes_workspace import TakesWorkspace
-
-
-@pytest.fixture
-def qapp():
-    app = QApplication.instance()
-    if app is None:
-        app = QApplication([])
-    return app
 
 
 def test_null_tracker_semantic_capabilities(qapp):
@@ -155,3 +146,43 @@ def test_takes_workspace_library_and_details(qapp, tmp_path):
     assert takes_ws._json_view is not None
 
     takes_ws.close()
+
+
+def test_missing_model_reports_needs_attention(qapp, tmp_path):
+    """Verify missing model file is truthfully flagged as an issue rather than falsely marked Ready."""
+    live_ws = LiveWorkspace()
+    live_ws.resize(1200, 800)
+    live_ws.show()
+
+    cfg = SessionConfig()
+    cfg.tracker_type = "mediapipe"
+    cfg.model_path = tmp_path / "nonexistent_model.task"
+    live_ws.set_session_config(cfg)
+
+    assert "Needs Attention" in live_ws._preflight_pill.text()
+    assert not live_ws._validation_banner_widget.isHidden()
+    live_ws.close()
+
+
+def test_tracker_panel_load_from_config_preserves_custom_model(qapp, tmp_path):
+    """Verify TrackerPanel.load_from_config retains custom model path and never silently swaps it."""
+    from cpc.ui.widgets.panels import TrackerPanel
+
+    panel = TrackerPanel()
+    custom_model = tmp_path / "user_fine_tuned_face.task"
+    custom_model.write_bytes(b"custom_model_data_bytes")
+
+    cfg = SessionConfig()
+    cfg.tracker_type = "mediapipe"
+    cfg.model_path = custom_model
+
+    panel.load_from_config(cfg)
+
+    # Must preserve the custom model in selection
+    selected_mid = panel.model_selector.get_selected_model_id()
+    assert selected_mid.startswith("custom:")
+    assert panel.model_selector.get_resolved_path() == custom_model
+
+    out_cfg = SessionConfig()
+    panel.apply_to_config(out_cfg)
+    assert out_cfg.model_path == custom_model

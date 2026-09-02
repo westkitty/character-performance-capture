@@ -224,9 +224,10 @@ class ModelRegistry(QObject):
 
     registry_changed = Signal()
 
-    def __init__(self, parent=None) -> None:
+    def __init__(self, base_dir: Path | None = None, parent=None) -> None:
         super().__init__(parent)
         self._settings = AppSettings()
+        self._base_dir = Path(base_dir) if base_dir else None
         self._models: dict[str, ModelEntry] = {
             RECOMMENDED_MEDIAPIPE_MODEL.model_id: RECOMMENDED_MEDIAPIPE_MODEL,
             NULL_TRACKER_MODEL.model_id: NULL_TRACKER_MODEL,
@@ -281,6 +282,12 @@ class ModelRegistry(QObject):
             return entry.custom_path if entry.custom_path.is_file() else None
 
         if model_id == RECOMMENDED_MEDIAPIPE_MODEL.model_id:
+            if self._base_dir is not None:
+                managed_path = self._base_dir / "mediapipe" / RECOMMENDED_MEDIAPIPE_MODEL.filename
+                if managed_path.is_file() and managed_path.stat().st_size > 100000:
+                    return managed_path
+                return None
+
             # Check managed application storage location first
             managed_path = get_managed_models_dir() / "mediapipe" / RECOMMENDED_MEDIAPIPE_MODEL.filename
             if managed_path.is_file() and managed_path.stat().st_size > 100000:
@@ -319,7 +326,7 @@ class ModelRegistry(QObject):
     def get_managed_destination(self, model_id: str) -> Path:
         """Get the authoritative installation destination for a curated model."""
         entry = self._models.get(model_id, RECOMMENDED_MEDIAPIPE_MODEL)
-        managed_dir = get_managed_models_dir() / entry.backend
+        managed_dir = (self._base_dir if self._base_dir is not None else get_managed_models_dir()) / entry.backend
         managed_dir.mkdir(parents=True, exist_ok=True)
         return managed_dir / entry.filename
 
@@ -361,6 +368,28 @@ class ModelRegistry(QObject):
         self.registry_changed.emit()
         return entry
 
+    def register_custom_path(self, file_path: Path | str) -> ModelEntry:
+        """Register or associate an existing custom model file path without requiring active model validation."""
+        path = Path(file_path)
+        mid = f"custom:{path.stem}"
+        if mid in self._models:
+            return self._models[mid]
+
+        entry = ModelEntry(
+            model_id=mid,
+            name=f"Custom: {path.name}",
+            backend="mediapipe",
+            description=f"Local MediaPipe Face Landmarker asset ({path.name})",
+            capabilities=["Facial Landmarks", "Blendshapes", "Head Rotation"],
+            is_recommended=False,
+            filename=path.name,
+            custom_path=path,
+        )
+        self._models[mid] = entry
+        self._settings.add_recent_item("custom_models", path)
+        self.registry_changed.emit()
+        return entry
+
     def validate_model_file(self, file_path: Path | str) -> tuple[bool, str]:
         """Perform a bounded compatibility check on a candidate .task model file."""
         path = Path(file_path)
@@ -391,3 +420,9 @@ def get_model_registry() -> ModelRegistry:
     if _GLOBAL_REGISTRY is None:
         _GLOBAL_REGISTRY = ModelRegistry()
     return _GLOBAL_REGISTRY
+
+
+def reset_model_registry(registry: ModelRegistry | None = None) -> None:
+    """Reset or override the global model registry instance (useful for test hermeticity)."""
+    global _GLOBAL_REGISTRY
+    _GLOBAL_REGISTRY = registry

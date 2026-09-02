@@ -38,66 +38,53 @@ python -m cpc.ui.app
 
 ## 3. Studio Workspaces
 
-The application is structured into 5 dedicated creator workspaces:
+The application is structured around a calm, stage-first information architecture across 5 dedicated workspaces:
 
 ### 1. Studio (Live)
 The primary live performance capture, preview, and streaming hub.
-* **Preflight Readiness Summary & Actionable "Fix This" Navigation**: Live status verifying Source, Tracker, Character, and Output settings before launching a session. Clicking on any issue jumps directly to the offending input or opens the Character Studio.
+* **Stage-First Dominant Viewport**: The live preview stage commands the vast majority of the screen with distraction-free presentation and zero permanent sidebar walls.
+* **The Session Strip**: A compact, interactive status strip (`[ 📷 Source ] [ 👤 Character ] [ 🎯 Tracker ] [ 📹 Output ] [ ⚙ Preset ]`) positioned immediately below the stage. Clicking any pill opens the Context Inspector directly to that section.
+* **Context Inspector**: A sleek ~360px contextual slide-out drawer on the right side replaces all permanent sidebars and nested scrolling columns.
+* **Truthful Scoped Readiness**: Displays observable readiness states (`● Preview Ready (No Tracking)`, `● Tracking Ready (Passthrough)`, `● Ready to Perform`, or `▲ Issues (Needs Attention)`).
+* **Lifecycle Transport Controls**: Single dominant **`[ ▶ Start Performing ]`** action when idle, transitioning to **`[ ● LIVE ]`**, **`[ 🎯 Recenter (Cmd+R) ]`**, and **`[ ■ Stop Session (Esc) ]`** when active.
 * **Neutral Calibration / Recenter (`Cmd+R` / `C`)**: Real-time calibration button to zero out resting facial expression and head pose offsets, enabling relative performance capturing from the performer's natural neutral face.
-* **Clean Preview Window / Projector (`Cmd+Shift+P`)**: Dedicated, standalone projector window for secondary monitors or OBS screen grabs. Supports Always-on-Top (`Qt.WindowStaysOnTopHint`), Fullscreen (`F11`), and HUD display modes (Full, Minimal, Hidden) without interrupting capture.
-* **Session Countdown**: Optional configurable 3-second or 5-second countdown timer before live recording commences.
-* **Session Presets with Dirty State**: Save, load, duplicate, rename, delete, import, and export named local presets. Indicates modified configurations with a `• Modified` indicator.
-* **Automatic Safe Filename Generator**: One-click "⚡ Auto Name" timestamp generator creating deterministic, collision-safe filenames (e.g. `take_2026-09-02_043512.cpc`).
-* **Performance Mode (`Cmd+P`)**: Distraction-free full-preview canvas view with minimal live HUD overlays (Active state, Rec badges, VCam status, FPS) and quick-stop control.
-* **Drag-and-Drop Ingest**: Drag video files (.mp4/.mov/.avi/.mkv) or MediaPipe task models (.task) directly into the setup panels.
-* **Input Source**: Select live connected cameras (with camera index, custom width/height/FPS, and rescan) or video files (with looping and horizontal mirroring).
-* **Performance Tracker**: Select between MediaPipe Face Landmarker (478 landmarks + 52 ARKit blendshapes) or Null benchmark tracker. Configure model path and compute delegate (`cpu` or `gpu`).
-* **Renderer & Character**: Choose between 2D Rig-Warp Mesh rendering or Passthrough preview. Select character reference images and custom `.rig.json` definitions.
+* **Clean Preview Window / Projector (`Cmd+Shift+P`)**: Dedicated, standalone projector window for secondary monitors or OBS screen grabs. Supports Always-on-Top (`Qt.WindowStaysOnTopHint`), Fullscreen (`F11`), and HUD display modes without interrupting capture.
+* **Session Presets with Dirty State**: Save, load, duplicate, rename, delete, import, and export named local presets with `• Modified` indicator.
+* **Automatic Safe Filename Generator**: One-click timestamp generator creating deterministic, collision-safe filenames (e.g. `take_2026-09-02_043512.cpc`).
+* **Performance Mode (`Cmd+P`)**: Distraction-free full-preview canvas view with minimal live HUD overlays and quick-stop control.
 * **Dual Gain Controls**: Real-time sliders and numeric double spinboxes (`0.00x` to `3.00x`) for mouth/brow expressiveness and head pose tracking, with single-click reset (`↺`).
 * **Outputs & Recording**:
   * **`.cpc` Performance Take**: Record raw facial tracking vectors and blendshape coefficients to disk.
   * **Rendered MP4 Video**: Record real-time composited character output.
-  * **Virtual Camera**: Stream rendered output live into OBS Studio, Zoom, Discord, or Google Meet with selectable resolution (e.g., 1280x720, 1920x1080).
-* **Live Telemetry & Preview**: Aspect-preserving preview with real-time FPS, inference latency, render latency, tracking rate, and active output badges.
-* **Session Summary Card**: Clean post-session summary providing total frames, duration, effective FPS, with direct "Reveal in Finder" and "Open in Takes Studio" actions.
-* **Activity & Technical Details Drawer**: Non-intrusive status drawer with one-click "Copy Technical Details" for diagnostics and troubleshooting.
+  * **Virtual Camera**: Stream rendered output live into OBS Studio, Zoom, Discord, or Google Meet.
 
 ### 2. Character Setup (Guided Workflow)
 Interactive 6-stage guided character onboarding and mesh visualizer workspace.
 * **Progressive 6-Stage Journey**:
-  1. **Character**: Drag & drop character artwork (PNG, JPG, WebP), automatic dimension detection, recent characters & favorites (★), and automatic existing rig sidecar discovery.
+  1. **Character**: Prominent artwork dropzone (PNG, JPG, WebP), automatic dimension detection, loaded character card, and automatic existing rig sidecar discovery.
   2. **Tracking**: Curated model selection with pre-selected Recommended MediaPipe Face Landmarker model, 1-click user-initiated installation, and advanced path/delegate disclosure.
   3. **Build Rig**: Automatic `<character>.rig.json` sidecar calculation, progress stages ("Detecting landmarks...", "Building Delaunay mesh..."), overwrite protection, and human-friendly error guidance if no face is found.
-  4. **Verify**: Interactive visualizer canvas with toggleable Landmark Points, Mesh Triangles (wireframe), and Boundary Hull overlays, alongside a verification checklist.
+  4. **Verify**: Dedicated visualizer canvas with toggleable Landmark Points, Mesh Triangles (wireframe), and Boundary Hull overlays, alongside a verification checklist.
   5. **Calibrate & Test**: 3-2-1 countdown neutral pose calibration setting resting face references, with motion responsiveness prompts ("Try blinking, smiling, turning head").
   6. **Ready**: Summary confirmation card and primary **`[ ▶ Start Performing in Live Studio ]`** action that seamlessly transfers all configuration directly to Live Studio.
-* **Top Navigation Rail**: Clickable step buttons (`1 Character` → `2 Tracking` → `3 Build Rig` → `4 Verify` → `5 Calibrate` → `6 Ready`) enabling easy backwards navigation to completed stages.
+* **Clean Top Navigation Rail**: Step indicators (`1 Character` → `2 Tracking` → `3 Build Rig` → `4 Verify` → `5 Calibrate` → `6 Ready`) with isolated verification overlays.
 
-### 3. Takes Inspector
+### 3. Takes Library
 Inspect, validate, and verify `.cpc` performance capture recordings.
-* **Single & Batch Multi-Take Inspection**: View individual take metadata or compare multiple takes in a comprehensive batch table.
-* **Drag & Drop Takes**: Drag `.cpc` or `.partial` files directly into the inspector.
-* **Header & Format Validation**: Verify schema version (`v1`), tracker identity, profile, and UTC timestamp.
-* **Performance Metrics**: View frame count, total duration, effective recording FPS, and file size.
-* **Completion Status**: Distinguish complete takes from partial/interrupted recordings.
-* **JSON Metadata Export**: View, copy, and export formatted take metadata JSON files.
+* **Recent-Takes-First Table**: Library table showing recent recordings with status badges, durations, frame counts, and file sizes.
+* **Contextual Details Drawer**: Selected take overview card with direct "Reveal in Finder" action.
+* **Collapsible Raw JSON**: Technical JSON metadata tucked behind an expandable disclosure.
 
 ### 4. Diagnostics Studio
 Hardware benchmarking and subsystem validation suite (GUI equivalent of `cpc --doctor`).
-* **Diagnose Current Setup**: One-click transfer of active Live Studio settings into Diagnostics for immediate verification.
-* **Sampling Depth Presets**: Quick (30 frames), Standard (60 frames), and Extended (180 frames) sampling benchmarks.
-* **Sensor Probe**: Validate camera and video source frame rates, resolutions, and backend drivers.
-* **Inference Benchmarking**: Measure real-world tracking execution latency and inference throughput.
-* **Sanitized Support Info**: One-click "Copy Support Info" to clipboard for troubleshooting without exposing personal file paths.
-* **Hardware & Privacy Verification**: Confirm local-first execution status and local storage isolation.
+* **System Health Check**: 4 high-level health cards (`Camera Ingest`, `Tracking Engine`, `Local-First Privacy`, `Output Pipeline`) initializing with truthful `— Not Checked` states before execution.
+* **One-Click Execution**: `[ ⚡ Run System Health Check ]` button initiates live hardware and inference probes.
+* **Collapsible Advanced Probe Settings**: Detailed benchmark configuration, sampling frames, and support copy tools located in a collapsible section.
 
 ### 5. Settings / About
-* **Tracking Models & Library**: View installed model assets, file sizes, and readiness status. Actions to "Reveal Models Folder in Finder", "Import Custom Model...", and "Install / Reinstall Recommended Model".
-* **Dependency Installation Commands**: One-click copyable `pip install` commands for optional extras (`[tracker-mediapipe]`, `[output-virtualcam]`, and full studio).
-* **Default Output Directory Preference**: Set and manage custom default save folders.
-* **Default Countdown Timer**: Set default session launch delay (Immediate, 3s, 5s).
-* **Reset UI Settings**: Restore all preferences and onboarding states to defaults.
-* **Architecture & Privacy Contract**: Detailed statement on zero-telemetry, clean-room design, and performer privacy.
+* **Quiet Preferences Layout**: Clean default takes directory and session countdown configurations.
+* **Tracking Models & Library**: View installable model assets, file sizes, and readiness status. "No Tracking" is treated as an operational mode, not an installed model file.
+* **System & Dependency Status**: Clear status indicators for Core Engine, Desktop Studio, OpenCV, MediaPipe Adapter, and Virtual Camera Output.
 
 ---
 
@@ -126,5 +113,5 @@ Hardware benchmarking and subsystem validation suite (GUI equivalent of `cpc --d
 
 The CPC Desktop Interface adheres to strict privacy and data isolation standards:
 * **Zero Telemetry**: No analytics, telemetry, crash reporters, or external tracking pings.
-* **Zero Network Calls**: The interface operates 100% offline with zero remote service dependencies.
+* **Zero Network Calls**: The interface operates 100% offline with zero remote service dependencies once models are installed.
 * **Performer Isolation**: `.cpc` take recordings store facial landmark coordinates and blendshapes only. Performer camera pixels are never stored in performance capture files.

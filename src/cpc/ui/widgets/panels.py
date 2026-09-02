@@ -333,20 +333,16 @@ class TrackerPanel(QGroupBox):
             self.model_selector.select_model("null-tracker")
         else:
             self.model_selector.set_delegate(cfg.tracker_delegate)
-            if cfg.model_path and cfg.model_path.is_file():
-                # Check if it matches default resolved path
-                resolved = self.model_selector.get_resolved_path()
-                if resolved != cfg.model_path:
-                    from cpc.ui.models import get_model_registry
+            if cfg.model_path:
+                from cpc.ui.models import get_model_registry
 
-                    reg = get_model_registry()
-                    try:
-                        entry = reg.register_custom_model(cfg.model_path, copy_to_managed=False)
-                        self.model_selector.select_model(entry.model_id)
-                    except (RuntimeError, ValueError, OSError, FileNotFoundError):
-                        self.model_selector.select_model("mediapipe-face-landmarker")
-                else:
+                reg = get_model_registry()
+                rec_path = reg.resolve_model_path("mediapipe-face-landmarker")
+                if rec_path is not None and cfg.model_path.resolve() == rec_path.resolve():
                     self.model_selector.select_model("mediapipe-face-landmarker")
+                else:
+                    entry = reg.register_custom_path(cfg.model_path)
+                    self.model_selector.select_model(entry.model_id)
             else:
                 self.model_selector.select_model("mediapipe-face-landmarker")
         self.model_selector.refresh_state()

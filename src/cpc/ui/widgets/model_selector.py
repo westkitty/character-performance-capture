@@ -23,6 +23,7 @@ from cpc.ui.models import (
     RECOMMENDED_MEDIAPIPE_MODEL,
     ModelDownloadWorker,
     ModelEntry,
+    ModelRegistry,
     ModelStatus,
     get_model_registry,
 )
@@ -37,14 +38,17 @@ class ModelSelectorWidget(QWidget):
     def __init__(self, parent=None, compact: bool = False) -> None:
         super().__init__(parent)
         self._compact = compact
-        self._registry = get_model_registry()
         self._active_model_id = RECOMMENDED_MEDIAPIPE_MODEL.model_id
         self._active_delegate = "cpu"
         self._download_worker: ModelDownloadWorker | None = None
 
         self._init_ui()
         self._registry.registry_changed.connect(self._refresh_models_list)
-        self.refresh_state()
+        self._refresh_models_list()
+
+    @property
+    def _registry(self) -> ModelRegistry:
+        return get_model_registry()
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
@@ -283,6 +287,10 @@ class ModelSelectorWidget(QWidget):
 
     def select_model(self, model_id: str) -> None:
         idx = self._model_combo.findData(model_id)
+        if idx < 0:
+            self._refresh_models_list()
+            idx = self._model_combo.findData(model_id)
+
         if idx >= 0:
             self._model_combo.setCurrentIndex(idx)
         else:

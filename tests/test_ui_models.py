@@ -161,3 +161,38 @@ def test_offline_guarantee_no_network_on_query():
         _ = reg.get_recommended_entry()
         _ = reg.get_status("mediapipe-face-landmarker")
         _ = reg.resolve_model_path("mediapipe-face-landmarker")
+
+
+def test_validate_model_file_tiny_invalid(tmp_path):
+    """Verify validate_model_file rejects files smaller than 50KB."""
+    reg = ModelRegistry()
+    tiny_file = tmp_path / "tiny.task"
+    tiny_file.write_bytes(b"dummy")
+
+    valid, reason = reg.validate_model_file(tiny_file)
+    assert valid is False
+    assert "too small" in reason.lower()
+
+
+def test_validate_model_file_missing():
+    """Verify validate_model_file rejects missing files."""
+    reg = ModelRegistry()
+    from pathlib import Path
+    missing_file = Path("/tmp/definitely_missing_task_file_123.task")
+
+    valid, reason = reg.validate_model_file(missing_file)
+    assert valid is False
+    assert "does not exist" in reason.lower()
+
+
+def test_register_custom_path_preserves_path_without_heavy_validation(tmp_path):
+    """Verify register_custom_path registers and preserves custom file path."""
+    reg = ModelRegistry()
+    custom_file = tmp_path / "custom_model.task"
+    custom_file.write_bytes(b"fake_data_bytes")
+
+    entry = reg.register_custom_path(custom_file)
+    assert entry.model_id.startswith("custom:")
+    assert entry.custom_path == custom_file.resolve()
+    assert reg.resolve_model_path(entry.model_id) == custom_file.resolve()
+    assert reg.get_status(entry.model_id) == ModelStatus.READY
