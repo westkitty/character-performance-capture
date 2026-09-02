@@ -7,11 +7,11 @@
   "project_name": "Character Performance Capture",
   "project_root": "westkitty/character-performance-capture",
   "artifact_path": null,
-  "state_revision": 17,
+  "state_revision": 18,
   "last_updated": "2026-09-02",
   "current_baseline": {
-    "identity": "CPC 1.1.0 feature-branch candidate on feat/desktop-ui with Stage-First Total UX Rearchitecture, Curated Model Library, and Guided Character Setup; 134 regression tests; hermetic test environment isolation; main remains authoritative CPC 1.0.0 until protected PR merge; ruleset 22061363 active.",
-    "state": "release-candidate-v1.1",
+    "identity": "CPC 1.1.0 on main incorporating Stage-First Total UX Rearchitecture, Curated Model Library, Guided Character Setup, and hermetic test isolation via PR #7 (squash merge 034a9aa6b571cb3e7805ad7e716a99108688cdd7); 134 regression tests; ruleset 22061363 active.",
+    "state": "merged-main-v1.1",
     "last_verified": "2026-09-02"
   },
   "scope_boundaries": [
@@ -32,11 +32,11 @@
 
 ## 2. Current Baseline
 
-- **Primary code artifact:** `main` — CPC `1.0.0`; release implementation baseline `f348242b5382628a6124411d4b8abc776d9883d4` (PR #4 squash merge). Subsequent documentation/state-only commits on `main` do not alter that implementation baseline.
-- **Feature branch artifact:** `feat/desktop-ui` — CPC `1.1.0` Creator Studio GUI; Stage-First Total UX Rearchitecture; Curated Model Library; Guided Character Setup; hermetic test isolation; and 134 automated unit/regression tests.
+- **Primary code artifact:** `main` — CPC `1.1.0`; baseline `034a9aa6b571cb3e7805ad7e716a99108688cdd7` (PR #7 squash merge, former feature head `f0067113b031a923697261c22af5d174a57a54b7`). Incorporates Stage-First Live Studio, Curated Model Library, Guided Character Setup, Clean Preview, and hermetic test isolation.
+- **Feature branch artifact:** `feat/desktop-ui` — retained historically after successful PR #7 integration.
 - **Repository governance artifact:** active `main` ruleset id `22061363`.
-- **Baseline state:** `release-candidate-v1.1` on `feat/desktop-ui`; `main` remains the authoritative merged/released branch until the protected PR workflow completes.
-- **Source/build/install identity:** strict portable `PerformanceFrame`; tracker→performance→renderer pipeline; hardened `.cpc` record/replay; optional MediaPipe Face Landmarker adapter (CPU delegate default, `>=0.10.35,<0.11`); `VideoFileSource` frame source; `RigWarpRenderer` deterministic 2D landmark-driven character renderer with relative head pose calibration and authored/derived rig sidecar contract; optional `VirtualCameraSink` (`pyvirtualcam`, OBS backend); coherent grouped CLI (`cpc --help`); mp4 rendered-preview recorder; local-only `--doctor`; 134 regression tests on the v1.1 candidate; explicit proprietary licensing; stable aggregate `required-ci`; enforced `main` ruleset.
+- **Baseline state:** `merged-main-v1.1`; `main` is the authoritative codebase.
+- **Source/build/install identity:** strict portable `PerformanceFrame`; tracker→performance→renderer pipeline; hardened `.cpc` record/replay; optional MediaPipe Face Landmarker adapter (CPU delegate default, `>=0.10.35,<0.11`); `VideoFileSource` frame source; `RigWarpRenderer` deterministic 2D landmark-driven character renderer with relative head pose calibration and authored/derived rig sidecar contract; optional `VirtualCameraSink` (`pyvirtualcam`, OBS backend); coherent grouped CLI (`cpc --help`); mp4 rendered-preview recorder; local-only `--doctor`; 134 regression tests on `main`; explicit proprietary licensing; stable aggregate `required-ci`; enforced `main` ruleset.
 - **Verified deterministic route:** schema, record/replay integrity, no-overwrite finalization, pipeline lifecycle/restart, diagnostic report logic and cleanup, geometry (similarity transform / clamping / matrix-to-euler / triangulation / warp), rig load+validation, rig-warp renderer safe-degradation and reactivity, relative head rotation calibration, `VideoFileSource` lifecycle, `VirtualCameraSink` negotiation/letterbox/absent-backend error, CLI wiring, Linux/macOS install, Ruff, pytest, MediaPipe package/API smoke, aggregate CI-gate behavior.
 - **Physical validation executed on target hardware (Apple Silicon M1, macOS 26.6.2, AVFOUNDATION):**
   - Physical camera doctor: opened index 0, 1920x1080 @ 30 FPS, 30.64 sampled FPS, zero camera pixels persisted (VER-019).
@@ -44,7 +44,7 @@
   - Live character renderer pipeline: 150 reactive rendered frames (640x512) driven by live facial expression and calibrated relative head rotation without showing performer face pixels (VER-021).
   - Real webcam `.cpc` recording & inspection: 150 frames, 10.035s duration, strictly portable schema without camera pixels (VER-022).
   - Virtual camera send & receive proof: OBS Virtual Camera 1280x720 stream received by external consumer at 30.29 FPS without buffer mismatch or drift (VER-023).
-- **Prior verification evidence:** GitHub Actions release run `33598377667` on `main` (PR #4 merge commit `f348242b5382628a6124411d4b8abc776d9883d4`) — Ubuntu core, macOS core, MediaPipe smoke, and `required-ci` all successful. Feature-branch QoL CI run `33609563770` on `070c2ab936f9c40c20d64625c6cac89567bd3c0a` completed successfully across Ubuntu, macOS, MediaPipe smoke, UI smoke, and `required-ci`.
+- **Prior verification evidence:** GitHub Actions release run `33598377667` on `main` (PR #4 merge commit `f348242b5382628a6124411d4b8abc776d9883d4`) — Ubuntu core, macOS core, MediaPipe smoke, and `required-ci` all successful. Feature-branch QoL CI run `33609563770` on `070c2ab936f9c40c20d64625c6cac89567bd3c0a` completed successfully. Post-merge main CI run `33656804501` on `034a9aa6b571cb3e7805ad7e716a99108688cdd7` completed successfully across Ubuntu, macOS, MediaPipe smoke, UI smoke, and `required-ci`.
 
 ## 3. Artifact Contract
 
@@ -97,14 +97,14 @@ The project is a clean-room implementation with a testable headless core. The pr
 
 ## 6. Known Not Working
 
-No unresolved deterministic or physical defects remain in CPC 1.0.0. No release-blocking deterministic defect is currently known on the v1.1 feature branch after the 109-test/CI pass; native QoL verification evidence is preserved as implementation-run evidence until merge/release closure.
+No unresolved deterministic or physical defects remain in CPC. The 134-test suite and clean-environment CI pass cleanly on `main`.
 
 - **GOV-001 — RESOLVED at revision 9:** Ruleset id `22061363` active and enforced.
 - **PHY-001 — RESOLVED at revision 10:** Physical webcam capture, MediaPipe inference, character rendering, `.cpc` capture, and virtual-camera consumer receive are fully verified.
 
 ## 7. Implemented but Unverified
 
-Core and previously validated physical routes remain verified. The v1.1 QoL implementation has successful deterministic/CI evidence; this state-repair pass did not independently re-run the native GUI on the user's Mac.
+Core and previously validated physical routes remain verified. The 134-test suite and desktop UI have successful deterministic/CI evidence on `main` (run `33656804501`).
 
 - **UNV-001 — RESOLVED at revision 10:** Real webcam doctor and live character route fully verified (VER-019..VER-022).
 - **UNV-002 — RESOLVED at revision 10:** Receive-side virtual-camera consumption verified with external consumer at 30.29 FPS (VER-023).
@@ -188,14 +188,20 @@ Core and previously validated physical routes remain verified. The v1.1 QoL impl
 | VER-027 | QoL megapass + 109-test candidate | verified | Commit 070c2ab; Actions run 33609563770 green in Ubuntu/macOS/MediaPipe/UI-smoke/required-ci | GitHub Actions + implementation-run local/native evidence | code 070c2ab / rev 14 | 2026-09-02 | QoL/UI change |
 | VER-028 | Curated Model Library & Guided Character Setup | verified | 123 passing automated tests; 100% clean Ruff; complete 6-stage journey verified with high-res captures | pytest + Ruff + visual captures | code rev 16 | 2026-09-02 | Model registry / Character setup change |
 | VER-029 | Stage-First CPC Studio UX Rearchitecture & Hermetic CI Repair | verified | 134 passing automated tests; 100% clean Ruff; hermetic test environment isolation; 5 workspaces rearchitected around dominant stage and contextual inspector | pytest + Ruff + visual captures + CI | code rev 17 | 2026-09-02 | UI architecture & hermetic test repair |
+| VER-030 | Post-Merge Main Integration Verification | verified | PR #7 merged into main (034a9aa6b571cb3e7805ad7e716a99108688cdd7); post-merge CI run 33656804501 passed all 5 lanes (Ubuntu, macOS, MediaPipe smoke, UI smoke, required-ci) with 134 tests | GitHub Actions + PR #7 | code 034a9aa / rev 18 | 2026-09-02 | PR merge / main push |
 
 ## 12. Current Change Scope and Impact Radius
 
-- **Allowed to change next:** Finish protected PR/review/merge of the v1.1 desktop candidate; optional tracker/renderer threading optimization (PND-008); optional offline generative renderers behind the existing seam.
+- **Allowed to change next:** Optional tracker/renderer threading optimization (PND-008); optional offline generative renderers behind the existing seam; ordinary future feature development via protected PRs; bounded post-merge defects if discovered.
 - **Must remain unchanged:** clean-room, local-first, media/model exclusion, license isolation, performance portability, strict capture integrity, no-overwrite recording, diagnostic privacy, repository-rights clarity, and pluggable-pipeline invariants.
-- **Mandatory next checks:** retain the 134-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, UI smoke, and `required-ci`; do not merge the v1.1 candidate unless the protected workflow is green.
+- **Mandatory next checks:** retain the 134-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, UI smoke, and `required-ci`; all future changes to main require a protected pull request.
 
 ## 13. Compact Revision Log
+
+### Revision 18 — 2026-09-02
+
+- **Artifact/source identity:** `main` @ `034a9aa6b571cb3e7805ad7e716a99108688cdd7` (PR #7 squash merge from `feat/desktop-ui` head `f0067113b031a923697261c22af5d174a57a54b7`); post-merge main CI run `33656804501` green.
+- **State deltas:** Reconciled Operational State after PR #7 integration; promoted `main` to authoritative `merged-main-v1.1` baseline incorporating Stage-First CPC Studio, Curated Model Library, Guided Character Setup, and hermetic test isolation; verified post-merge main CI across all 5 required lanes with 134 tests (VER-030); retained `feat/desktop-ui` historically; no release tag created.
 
 ### Revision 17 — 2026-09-02
 
