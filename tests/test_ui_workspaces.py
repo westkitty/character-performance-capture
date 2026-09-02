@@ -182,8 +182,8 @@ def test_character_workspace_interaction(qapp, tmp_path):
     save_rig(CharacterRig(width=80, height=100, points=pts), tmp_path / "test_char.png.rig.json")
 
     workspace._char_edit.setText(str(char_img))
-    assert "Verified & Ready" in workspace._lbl_status.text()
-    assert workspace._use_char_btn.isEnabled()
+    assert workspace._existing_rig_banner.isVisible()
+    assert workspace._btn_step1_next.isEnabled()
 
     # Toggle favorite
     workspace._toggle_favorite()

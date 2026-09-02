@@ -272,7 +272,7 @@ class SourcePanel(QGroupBox):
 
 
 class TrackerPanel(QGroupBox):
-    """Configuration panel for Performance Tracker selection with drag/drop."""
+    """Configuration panel for Performance Tracker selection with Curated Model Library."""
 
     config_changed = Signal()
 
@@ -283,78 +283,15 @@ class TrackerPanel(QGroupBox):
         self._init_ui()
 
     def _init_ui(self) -> None:
-        layout = QGridLayout(self)
-        layout.setContentsMargins(12, 14, 12, 12)
-        layout.setSpacing(8)
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 10, 8, 8)
+        layout.setSpacing(6)
 
-        # Tracker Selection
-        layout.addWidget(QLabel("Backend:"), 0, 0)
-        self._tracker_combo = QComboBox()
-        self._tracker_combo.addItems([
-            "No Tracking (Passthrough / Baseline)",
-            "MediaPipe Face Landmarker (478 pts + 52 Blendshapes)",
-        ])
-        self._tracker_combo.currentIndexChanged.connect(self._on_tracker_changed)
-        layout.addWidget(self._tracker_combo, 0, 1)
+        from cpc.ui.widgets.model_selector import ModelSelectorWidget
 
-        # Model Path Picker
-        self._lbl_model = QLabel("Model Asset (.task):")
-        layout.addWidget(self._lbl_model, 1, 0)
-
-        self._model_edit = QLineEdit()
-        self._model_edit.setPlaceholderText("Path or drop face_landmarker.task...")
-        self._model_edit.textChanged.connect(lambda: self.config_changed.emit())
-
-        self._browse_model_btn = QPushButton("Browse...")
-        self._browse_model_btn.clicked.connect(self._browse_model)
-
-        self._clear_model_btn = QPushButton("✕")
-        self._clear_model_btn.setMaximumWidth(28)
-        self._clear_model_btn.clicked.connect(self._model_edit.clear)
-
-        model_row = QHBoxLayout()
-        model_row.addWidget(self._model_edit, 1)
-        model_row.addWidget(self._browse_model_btn)
-        model_row.addWidget(self._clear_model_btn)
-        layout.addLayout(model_row, 1, 1)
-
-        # Execution Delegate
-        self._lbl_delegate = QLabel("Compute Delegate:")
-        layout.addWidget(self._lbl_delegate, 2, 0)
-
-        self._delegate_combo = QComboBox()
-        self._delegate_combo.addItems([
-            "CPU (Recommended / Validated on macOS)",
-            "GPU (Experimental)",
-        ])
-        self._delegate_combo.currentIndexChanged.connect(lambda: self.config_changed.emit())
-        layout.addWidget(self._delegate_combo, 2, 1)
-
-        self._update_visibility()
-
-    def _on_tracker_changed(self) -> None:
-        self._update_visibility()
-        self.config_changed.emit()
-
-    def _update_visibility(self) -> None:
-        is_mp = (self._tracker_combo.currentIndex() == 1)
-        self._lbl_model.setVisible(is_mp)
-        self._model_edit.setVisible(is_mp)
-        self._browse_model_btn.setVisible(is_mp)
-        self._clear_model_btn.setVisible(is_mp)
-        self._lbl_delegate.setVisible(is_mp)
-        self._delegate_combo.setVisible(is_mp)
-
-    def _browse_model(self) -> None:
-        path, _ = QFileDialog.getOpenFileName(
-            self,
-            "Select MediaPipe Face Landmarker Task Model",
-            self._settings.get_last_directory(),
-            "Task Models (*.task);;All Files (*)",
-        )
-        if path:
-            self._settings.set_last_directory(path)
-            self._model_edit.setText(path)
+        self.model_selector = ModelSelectorWidget(self)
+        self.model_selector.model_selection_changed.connect(lambda *_: self.config_changed.emit())
+        layout.addWidget(self.model_selector)
 
     def dragEnterEvent(self, event: QDragEnterEvent) -> None:
         if event.mimeData().hasUrls():
@@ -369,30 +306,50 @@ class TrackerPanel(QGroupBox):
         for url in event.mimeData().urls():
             p = Path(url.toLocalFile())
             if p.suffix.lower() == ".task":
-                self._tracker_combo.setCurrentIndex(1)
-                self._model_edit.setText(str(p))
-                event.acceptProposedAction()
-                return
+                from cpc.ui.models import get_model_registry
+
+                reg = get_model_registry()
+                try:
+                    entry = reg.register_custom_model(p, copy_to_managed=True)
+                    self.model_selector.select_model(entry.model_id)
+                    event.acceptProposedAction()
+                    return
+                except (RuntimeError, ValueError, OSError, FileNotFoundError):
+                    continue
 
     def apply_to_config(self, cfg: SessionConfig) -> None:
-        if self._tracker_combo.currentIndex() == 1:
-            cfg.tracker_type = "mediapipe"
-            model_str = self._model_edit.text().strip()
-            cfg.model_path = Path(model_str) if model_str else None
-            cfg.tracker_delegate = "gpu" if self._delegate_combo.currentIndex() == 1 else "cpu"
-        else:
+        mid = self.model_selector.get_selected_model_id()
+        if mid == "null-tracker":
             cfg.tracker_type = "null"
             cfg.model_path = None
             cfg.tracker_delegate = "cpu"
+        else:
+            cfg.tracker_type = "mediapipe"
+            cfg.model_path = self.model_selector.get_resolved_path()
+            cfg.tracker_delegate = self.model_selector.get_selected_delegate()
 
     def load_from_config(self, cfg: SessionConfig) -> None:
-        if cfg.tracker_type == "mediapipe":
-            self._tracker_combo.setCurrentIndex(1)
-            self._model_edit.setText(str(cfg.model_path) if cfg.model_path else "")
-            self._delegate_combo.setCurrentIndex(1 if cfg.tracker_delegate == "gpu" else 0)
+        if cfg.tracker_type == "null":
+            self.model_selector.select_model("null-tracker")
         else:
-            self._tracker_combo.setCurrentIndex(0)
-        self._update_visibility()
+            self.model_selector.set_delegate(cfg.tracker_delegate)
+            if cfg.model_path and cfg.model_path.is_file():
+                # Check if it matches default resolved path
+                resolved = self.model_selector.get_resolved_path()
+                if resolved != cfg.model_path:
+                    from cpc.ui.models import get_model_registry
+
+                    reg = get_model_registry()
+                    try:
+                        entry = reg.register_custom_model(cfg.model_path, copy_to_managed=False)
+                        self.model_selector.select_model(entry.model_id)
+                    except (RuntimeError, ValueError, OSError, FileNotFoundError):
+                        self.model_selector.select_model("mediapipe-face-landmarker")
+                else:
+                    self.model_selector.select_model("mediapipe-face-landmarker")
+            else:
+                self.model_selector.select_model("mediapipe-face-landmarker")
+        self.model_selector.refresh_state()
 
 
 class RendererPanel(QGroupBox):

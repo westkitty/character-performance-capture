@@ -55,10 +55,11 @@ class MainWindow(QMainWindow):
         self.live_workspace.open_diagnostics_workspace.connect(self._open_diagnostics_current_setup)
         self._tabs.addTab(self.live_workspace, "Studio (Live)")
 
-        # 2. Character & Rig Studio
+        # 2. Character Setup Studio
         self.character_workspace = CharacterWorkspace()
         self.character_workspace.character_selected.connect(self._on_character_rig_selected)
-        self._tabs.addTab(self.character_workspace, "Character && Rig")
+        self.character_workspace.start_performing_requested.connect(self._on_start_performing_requested)
+        self._tabs.addTab(self.character_workspace, "Character Setup")
 
         # 3. Takes Inspector
         self.takes_workspace = TakesWorkspace()
@@ -170,7 +171,7 @@ class MainWindow(QMainWindow):
         act_tab_0.triggered.connect(lambda: self._tabs.setCurrentIndex(0))
         view_menu.addAction(act_tab_0)
 
-        act_tab_1 = QAction("Character && Rig Studio", self)
+        act_tab_1 = QAction("Character Setup", self)
         act_tab_1.setShortcut(QKeySequence("Ctrl+2" if sys.platform != "darwin" else "Cmd+2"))
         act_tab_1.triggered.connect(lambda: self._tabs.setCurrentIndex(1))
         view_menu.addAction(act_tab_1)
@@ -206,7 +207,7 @@ class MainWindow(QMainWindow):
         act_diag_setup.triggered.connect(self._open_diagnostics_current_setup)
         tools_menu.addAction(act_diag_setup)
 
-        act_derive = QAction("Derive Rig for Character...", self)
+        act_derive = QAction("Set Up Character...", self)
         act_derive.triggered.connect(lambda: self._tabs.setCurrentIndex(1))
         tools_menu.addAction(act_derive)
 
@@ -245,7 +246,7 @@ class MainWindow(QMainWindow):
             ("Toggle Performance Mode", "Full-preview distraction-free canvas view", "Cmd+P", self.live_workspace.toggle_performance_mode),
             ("Open Clean Preview Window", "Dedicated secondary projector window", "Cmd+Shift+P", self.live_workspace.open_clean_preview),
             ("Go to Studio (Live)", "Primary live capture workspace", "Cmd+1", lambda: self._tabs.setCurrentIndex(0)),
-            ("Go to Character & Rig Studio", "Character artwork & landmark derivation", "Cmd+2", lambda: self._tabs.setCurrentIndex(1)),
+            ("Go to Character Setup", "Guided character setup, model library & rig derivation", "Cmd+2", lambda: self._tabs.setCurrentIndex(1)),
             ("Go to Takes Inspector", "Inspect .cpc takes & performance metrics", "Cmd+3", lambda: self._tabs.setCurrentIndex(2)),
             ("Go to Diagnostics", "Hardware probe & benchmark doctor", "Cmd+4", lambda: self._tabs.setCurrentIndex(3)),
             ("Diagnose Current Setup", "Transfer live settings directly into Diagnostics", "", self._open_diagnostics_current_setup),
@@ -364,6 +365,13 @@ class MainWindow(QMainWindow):
         self.live_workspace.set_session_config(cfg)
         self._tabs.setCurrentIndex(0)
         self.status_bar.showMessage(f"Character '{char_path.name}' applied to Live Studio", 4000)
+
+    def _on_start_performing_requested(self, setup_dict: dict) -> None:
+        self.live_workspace.apply_character_setup(setup_dict)
+        self._tabs.setCurrentIndex(0)
+        char_name = setup_dict.get("character_path")
+        name_str = char_name.name if isinstance(char_name, Path) else "Character"
+        self.status_bar.showMessage(f"'{name_str}' is ready to perform in Live Studio!", 5000)
 
     def _on_open_take(self, take_path: Path) -> None:
         self.takes_workspace.inspect_path(take_path)

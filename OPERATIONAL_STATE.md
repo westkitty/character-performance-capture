@@ -154,6 +154,9 @@ Core and previously validated physical routes remain verified. The v1.1 QoL impl
 - **DEC-020:** Session presets, recents, favorites, and per-character memory store local configuration/path metadata only; they do not embed user media, model bytes, captures, or credentials.
 - **DEC-021:** Neutral-pose recentering changes only the active session's relative performer reference; it does not rewrite character rigs, tracker models, or recorded source media.
 - **DEC-022:** Clean Preview is a presentation surface over existing rendered output, not a second renderer or alternate capture pipeline; closing/manipulating it must not terminate the active session.
+- **DEC-023:** Curated Model Library ships metadata-only (zero model binaries committed to Git); model installation is 100% user-initiated into platform app-managed storage (`models/mediapipe/face_landmarker.task`); operation is 100% offline once installed with zero network calls on startup.
+- **DEC-024:** Guided 6-Stage Character Setup (`1 Character` → `2 Tracking` → `3 Build Rig` → `4 Verify` → `5 Calibrate` → `6 Ready`) is the canonical onboarding journey, providing automatic rig sidecar defaults, wireframe visualizer checklist, rest pose calibration countdown, and 1-click `"Start Performing"` Live handoff.
+- **DEC-025:** Reusable `ModelSelectorWidget` provides unified model discovery, Recommended badge, readiness indicators, download progress, and advanced technical disclosure across both Character Setup and Live Studio.
 
 ## 11. Validation and Evidence Matrix
 
@@ -180,14 +183,20 @@ Core and previously validated physical routes remain verified. The v1.1 QoL impl
 | VER-025 | Desktop Studio GUI (`cpc-ui`) & 98-test suite | verified | 98 passing tests, 100% CLI parity, background threading, 5 workspaces | pytest + Ruff + UI smoke | rev 12 | 2026-09-02 | UI/workspaces change |
 | VER-026 | Production Creator Studio hardening | verified | Backpressure/QImage/session-state/preset/performance-mode/command-palette work; 105-test implementation evidence | pytest + Ruff + native implementation run | code 3b6f333 / rev 13 | 2026-09-02 | UI lifecycle/rendering change |
 | VER-027 | QoL megapass + 109-test candidate | verified | Commit 070c2ab; Actions run 33609563770 green in Ubuntu/macOS/MediaPipe/UI-smoke/required-ci | GitHub Actions + implementation-run local/native evidence | code 070c2ab / rev 14 | 2026-09-02 | QoL/UI change |
+| VER-028 | Curated Model Library & Guided Character Setup | verified | 123 passing automated tests; 100% clean Ruff; complete 6-stage journey verified with high-res captures | pytest + Ruff + visual captures | code rev 16 | 2026-09-02 | Model registry / Character setup change |
 
 ## 12. Current Change Scope and Impact Radius
 
 - **Allowed to change next:** Finish protected PR/review/merge of the v1.1 desktop candidate; optional tracker/renderer threading optimization (PND-008); optional offline generative renderers behind the existing seam.
 - **Must remain unchanged:** clean-room, local-first, media/model exclusion, license isolation, performance portability, strict capture integrity, no-overwrite recording, diagnostic privacy, repository-rights clarity, and pluggable-pipeline invariants.
-- **Mandatory next checks:** retain the 109-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, UI smoke, and `required-ci`; do not merge the v1.1 candidate unless the protected workflow is green.
+- **Mandatory next checks:** retain the 123-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, UI smoke, and `required-ci`; do not merge the v1.1 candidate unless the protected workflow is green.
 
 ## 13. Compact Revision Log
+
+### Revision 16 — 2026-09-02
+
+- **Artifact/source identity:** `feat/desktop-ui` candidate with Curated Model Library and Guided Character Setup; 123 passing automated unit/smoke tests; 100% clean Ruff.
+- **State deltas:** Added `src/cpc/ui/models.py` with `ModelRegistry`, `ModelStatus`, and async `ModelDownloadWorker` with progress, cancellation, and atomic install; added `src/cpc/ui/widgets/model_selector.py` with curated presentation, Recommended badge, status indicators, and advanced path/delegate disclosure; transformed `CharacterWorkspace` into an intuitive 6-stage guided progression (`1 Character` → `2 Tracking` → `3 Build Rig` → `4 Verify` → `5 Calibrate` → `6 Ready`) with 1-click `"Start Performing"` handoff into Live Studio; integrated Model Selector into `TrackerPanel` in Live Studio; added Tracking Models & Library management section to `SettingsWorkspace`; expanded automated test suite from 109 to 123 tests (`tests/test_ui_models.py`, `tests/test_ui_character_setup.py`); verified offline guarantees and visual evidence across all setup stages.
 
 ### Revision 15 — 2026-09-02
 

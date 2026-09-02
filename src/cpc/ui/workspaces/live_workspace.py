@@ -413,10 +413,13 @@ class LiveWorkspace(QWidget):
         errors = cfg.validate()
         if not errors:
             return
-        
+
         first_err = errors[0].lower()
         if "tracker" in first_err or "model" in first_err:
-            self.tracker_panel._model_edit.setFocus()
+            if not self.tracker_panel.model_selector.is_ready():
+                self.tracker_panel.model_selector.install_recommended_model()
+            else:
+                self.tracker_panel.model_selector.setFocus()
         elif "character" in first_err or "rig" in first_err:
             self.open_character_workspace.emit()
         elif "already exists" in first_err:
@@ -425,6 +428,25 @@ class LiveWorkspace(QWidget):
             self.outputs_panel._generate_mp4_filename()
         elif "video" in first_err:
             self.source_panel._video_edit.setFocus()
+
+    def apply_character_setup(self, setup_dict: dict[str, Any]) -> None:
+        """Apply complete setup carried over from Character Setup workspace."""
+        cfg = self.get_session_config()
+        if "character_path" in setup_dict:
+            cfg.character_path = setup_dict["character_path"]
+        if "rig_path" in setup_dict:
+            cfg.rig_path = setup_dict["rig_path"]
+        if "model_path" in setup_dict:
+            cfg.model_path = setup_dict["model_path"]
+        if "tracker_delegate" in setup_dict:
+            cfg.tracker_delegate = setup_dict["tracker_delegate"]
+        if "tracker_type" in setup_dict:
+            cfg.tracker_type = setup_dict["tracker_type"]
+        if "renderer_type" in setup_dict:
+            cfg.renderer_type = setup_dict["renderer_type"]
+
+        self.set_session_config(cfg)
+        self._log_activity(f"Applied character setup for: {cfg.character_path.name if cfg.character_path else 'Character'}")
 
     def _update_preset_dirty_state(self) -> None:
         if self._preset_combo.count() == 0:

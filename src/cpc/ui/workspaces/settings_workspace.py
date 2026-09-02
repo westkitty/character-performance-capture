@@ -4,7 +4,7 @@ from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 import cv2
-from PySide6.QtGui import QFont, QGuiApplication
+from PySide6.QtGui import QDesktopServices, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
@@ -101,10 +101,42 @@ class SettingsWorkspace(QWidget):
         inst_row.addStretch(1)
         r_grid.addLayout(inst_row, 5, 0, 1, 3)
 
-        layout.addWidget(readiness_group)
+        # -------------------------------------------------------------
+        # 2. Tracking Models & Library Management
+        # -------------------------------------------------------------
+        models_group = QGroupBox("Tracking Models && Library")
+        m_layout = QVBoxLayout(models_group)
+        m_layout.setContentsMargins(14, 18, 14, 14)
+        m_layout.setSpacing(10)
+
+        from cpc.ui.models import get_managed_models_dir
+
+        self._models_grid = QGridLayout()
+        self._models_grid.setSpacing(8)
+        m_layout.addLayout(self._models_grid)
+
+        self._refresh_models_table()
+
+        m_btn_row = QHBoxLayout()
+        btn_reveal_models = QPushButton("📁 Reveal Models Folder in Finder")
+        btn_reveal_models.clicked.connect(lambda: QDesktopServices.openUrl(f"file://{get_managed_models_dir().resolve()}"))
+        m_btn_row.addWidget(btn_reveal_models)
+
+        btn_import_m = QPushButton("📂 Import Custom Model...")
+        btn_import_m.clicked.connect(self._import_custom_model)
+        m_btn_row.addWidget(btn_import_m)
+
+        btn_reinstall = QPushButton("⚡ Install / Reinstall Recommended Model")
+        btn_reinstall.clicked.connect(self._reinstall_recommended_model)
+        m_btn_row.addWidget(btn_reinstall)
+
+        m_btn_row.addStretch(1)
+        m_layout.addLayout(m_btn_row)
+
+        layout.addWidget(models_group)
 
         # -------------------------------------------------------------
-        # 2. Local Preferences & Storage
+        # 3. Local Preferences & Storage
         # -------------------------------------------------------------
         pref_group = QGroupBox("Preferences && Defaults")
         p_layout = QVBoxLayout(pref_group)
@@ -202,6 +234,79 @@ class SettingsWorkspace(QWidget):
     def _copy_cmd(self, cmd: str) -> None:
         QGuiApplication.clipboard().setText(cmd)
         QMessageBox.information(self, "Copied", f"Command copied to clipboard:\n\n{cmd}")
+
+    def _refresh_models_table(self) -> None:
+        from cpc.ui.models import ModelStatus, get_model_registry
+
+        reg = get_model_registry()
+
+        # Clear existing rows in _models_grid
+        while self._models_grid.count():
+            item = self._models_grid.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        entries = reg.get_entries()
+        for row, e in enumerate(entries):
+            status = reg.get_status(e.model_id)
+            path = reg.resolve_model_path(e.model_id)
+
+            title_lbl = QLabel(e.name)
+            title_lbl.setStyleSheet("font-weight: 600; color: #e4e4e7;")
+
+            status_str = f"● {status.value}" if status == ModelStatus.READY else f"▲ {status.value}"
+            color = "#10b981" if status == ModelStatus.READY else ("#f59e0b" if status == ModelStatus.NOT_INSTALLED else "#ef4444")
+            status_lbl = QLabel(status_str)
+            status_lbl.setStyleSheet(f"color: {color}; font-weight: 600;")
+
+            path_str = f"{path.name} ({path.stat().st_size / (1024*1024):.1f} MB)" if (path and path.is_file()) else "Not installed"
+            path_lbl = QLabel(path_str)
+            path_lbl.setStyleSheet("color: #71717a; font-size: 11px;")
+
+            self._models_grid.addWidget(title_lbl, row, 0)
+            self._models_grid.addWidget(status_lbl, row, 1)
+            self._models_grid.addWidget(path_lbl, row, 2)
+
+    def _import_custom_model(self) -> None:
+        from cpc.ui.models import get_model_registry
+
+        reg = get_model_registry()
+        path_str, _ = QFileDialog.getOpenFileName(
+            self,
+            "Import Compatible MediaPipe Face Landmarker Model",
+            str(Path.home()),
+            "MediaPipe Models (*.task);;All Files (*)",
+        )
+        if not path_str:
+            return
+
+        p = Path(path_str)
+        try:
+            entry = reg.register_custom_model(p, copy_to_managed=True)
+            self._refresh_models_table()
+            QMessageBox.information(
+                self,
+                "Model Imported",
+                f"Custom model '{entry.name}' successfully validated and registered.",
+            )
+        except (RuntimeError, ValueError, OSError, FileNotFoundError) as exc:
+            QMessageBox.critical(
+                self,
+                "Import Error",
+                f"Could not import model:\n{exc}\n\nEnsure this is a valid MediaPipe Face Landmarker .task file.",
+            )
+
+    def _reinstall_recommended_model(self) -> None:
+        from cpc.ui.widgets.model_selector import ModelSelectorWidget
+
+        sel = ModelSelectorWidget(self)
+        sel.install_recommended_model()
+        QMessageBox.information(
+            self,
+            "Download Started",
+            "MediaPipe Face Landmarker model download initiated.\nYou can track progress in Character Setup or Live Studio.",
+        )
+        self._refresh_models_table()
 
     def _browse_output_dir(self) -> None:
         path = QFileDialog.getExistingDirectory(

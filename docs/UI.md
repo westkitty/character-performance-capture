@@ -62,15 +62,16 @@ The primary live performance capture, preview, and streaming hub.
 * **Session Summary Card**: Clean post-session summary providing total frames, duration, effective FPS, with direct "Reveal in Finder" and "Open in Takes Studio" actions.
 * **Activity & Technical Details Drawer**: Non-intrusive status drawer with one-click "Copy Technical Details" for diagnostics and troubleshooting.
 
-### 2. Character & Rig Studio
-Interactive character mesh derivation and inspection workspace.
-* **Drag & Drop Artwork & Models**: Drag PNG, JPG, WebP images, or `.task` models directly onto the canvas.
-* **Recent Characters & Favorites (★)**: Quick selector for recently used characters and bookmarking for favorite avatars.
-* **Automatic Rig Derivation**: Detect facial landmarks from character artwork and compute optimal Delaunay triangulation meshes.
-* **Rig Re-Derivation Overwrite Safety**: Guard prompt preventing accidental overwriting of existing rig definitions.
-* **Rig Sidecar Generation**: Save and export deterministic `.rig.json` definition files with overwrite protection.
-* **Interactive Wireframe Overlay**: Visual inspector displaying landmark points and convex hull boundary over character artwork.
-* **One-Click Studio Promotion**: Promotes the derived character and rig directly into the Live Studio.
+### 2. Character Setup (Guided Workflow)
+Interactive 6-stage guided character onboarding and mesh visualizer workspace.
+* **Progressive 6-Stage Journey**:
+  1. **Character**: Drag & drop character artwork (PNG, JPG, WebP), automatic dimension detection, recent characters & favorites (★), and automatic existing rig sidecar discovery.
+  2. **Tracking**: Curated model selection with pre-selected Recommended MediaPipe Face Landmarker model, 1-click user-initiated installation, and advanced path/delegate disclosure.
+  3. **Build Rig**: Automatic `<character>.rig.json` sidecar calculation, progress stages ("Detecting landmarks...", "Building Delaunay mesh..."), overwrite protection, and human-friendly error guidance if no face is found.
+  4. **Verify**: Interactive visualizer canvas with toggleable Landmark Points, Mesh Triangles (wireframe), and Boundary Hull overlays, alongside a verification checklist.
+  5. **Calibrate & Test**: 3-2-1 countdown neutral pose calibration setting resting face references, with motion responsiveness prompts ("Try blinking, smiling, turning head").
+  6. **Ready**: Summary confirmation card and primary **`[ ▶ Start Performing in Live Studio ]`** action that seamlessly transfers all configuration directly to Live Studio.
+* **Top Navigation Rail**: Clickable step buttons (`1 Character` → `2 Tracking` → `3 Build Rig` → `4 Verify` → `5 Calibrate` → `6 Ready`) enabling easy backwards navigation to completed stages.
 
 ### 3. Takes Inspector
 Inspect, validate, and verify `.cpc` performance capture recordings.
@@ -91,6 +92,7 @@ Hardware benchmarking and subsystem validation suite (GUI equivalent of `cpc --d
 * **Hardware & Privacy Verification**: Confirm local-first execution status and local storage isolation.
 
 ### 5. Settings / About
+* **Tracking Models & Library**: View installed model assets, file sizes, and readiness status. Actions to "Reveal Models Folder in Finder", "Import Custom Model...", and "Install / Reinstall Recommended Model".
 * **Dependency Installation Commands**: One-click copyable `pip install` commands for optional extras (`[tracker-mediapipe]`, `[output-virtualcam]`, and full studio).
 * **Default Output Directory Preference**: Set and manage custom default save folders.
 * **Default Countdown Timer**: Set default session launch delay (Immediate, 3s, 5s).

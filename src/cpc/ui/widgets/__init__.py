@@ -3,6 +3,7 @@
 from cpc.ui.widgets.clean_preview_window import CleanPreviewWindow
 from cpc.ui.widgets.command_palette import CommandPaletteDialog
 from cpc.ui.widgets.command_preview import CommandPreviewWidget
+from cpc.ui.widgets.model_selector import ModelSelectorWidget
 from cpc.ui.widgets.panels import (
     AdvancedPanel,
     OutputsPanel,
@@ -18,6 +19,7 @@ __all__ = [
     "CleanPreviewWindow",
     "CommandPaletteDialog",
     "CommandPreviewWidget",
+    "ModelSelectorWidget",
     "OutputsPanel",
     "PreviewWidget",
     "RendererPanel",
