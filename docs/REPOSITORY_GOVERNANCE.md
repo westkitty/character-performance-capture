@@ -35,9 +35,18 @@ Administrator bypass should remain narrow and deliberate. Emergency bypasses sho
 
 ## Current enforcement state
 
-Repository CI is implemented, but GitHub-side branch protection/rulesets must be enabled in repository settings before the policy is technically enforced. Until then, direct pushes can still land even if CI later reports failure.
+An **active** branch ruleset targets the default branch (`main`) and enforces:
 
-The active ChatGPT GitHub connector can read branch protection and rulesets but does not expose a write action for those repository settings. Therefore this repository must not claim branch enforcement until GitHub reports `main` as protected or an active ruleset targeting `main` is observable.
+- pull request required before merge
+- required status check `required-ci` with the strict "branch up to date" policy
+- linear history
+- no force pushes (`non_fast_forward`)
+- no branch deletion (`deletion`)
+
+GitHub independently reports these five rules as applying to `refs/heads/main`
+(`GET /repos/{owner}/{repo}/rules/branches/main`). Administrator bypass is scoped
+to `pull_request` only, so an admin still merges through a PR. Ruleset id is
+recorded in `OPERATIONAL_STATE.md`.
 
 ## Verification rule
 

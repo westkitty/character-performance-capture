@@ -8,7 +8,7 @@ Provide a local-first character-performance pipeline whose camera, tracking, por
 
 ### 1. Frame source
 
-Owns camera/file acquisition and resource lifecycle. It returns ordinary BGR NumPy frames. It does not know which tracker or renderer will consume them.
+Owns camera/file acquisition and resource lifecycle. It returns ordinary BGR NumPy frames. It does not know which tracker or renderer will consume them. `CameraSource` wraps a live OpenCV camera; `VideoFileSource` reads a local video file (optionally looping) through the identical `open/info/read/close` contract so the whole pipeline runs without a webcam or camera permission.
 
 ### 2. Performance tracker
 
@@ -20,16 +20,26 @@ Converts a performer frame into portable `PerformanceFrame` state. The tracker c
 
 ### 4. Character renderer
 
-Consumes a source frame plus portable performer state and produces a rendered frame. `PassthroughRenderer` currently proves the contract without a character model. Future renderer packages must declare their code license, model license, hardware path, expected latency, and whether commercial use is allowed.
+Consumes portable performer state and produces a rendered character frame.
+`PassthroughRenderer` proves the contract with no character. `RigWarpRenderer` is
+the first production-capable renderer: a deterministic, license-clean 2D
+landmark-driven warp of an authorized character reference image
+([`RENDERER.md`](RENDERER.md)). Any future renderer package must declare its code
+license, model license, hardware path, expected latency, and whether commercial
+use is allowed.
 
 ### 5. Output sink
 
-Preview, file recorder, or virtual-camera output. Output must not be entangled with model inference. OpenCV preview exists today; virtual-camera output remains pending.
+Preview, file recorder, or virtual-camera output. Output must not be entangled
+with model inference. OpenCV preview and an mp4 recorder exist; `VirtualCameraSink`
+(optional `pyvirtualcam`, macOS OBS Virtual Camera backend) publishes rendered
+frames with explicit dimension/FPS negotiation, aspect-preserving letterboxing, a
+clean error when the backend is absent, and no disk or network writes.
 
-## Current v0.2 slice
+## Current v1.0.0-rc1 slice
 
 ```text
-CameraSource
+CameraSource | VideoFileSource
     |
     v
 PerformanceTracker (NullTracker or optional MediaPipeFaceTracker)
@@ -38,10 +48,12 @@ PerformanceTracker (NullTracker or optional MediaPipeFaceTracker)
 PerformanceFrame -----> PerformanceRecorder / PerformanceReplay (.cpc)
     |
     v
-CharacterRenderer (PassthroughRenderer today)
+CharacterRenderer (PassthroughRenderer | RigWarpRenderer)
     |
     v
 OpenCV preview + telemetry
+    ├─ mp4 recorder
+    └─ VirtualCameraSink (optional, OBS backend)
 ```
 
 The older frame-only `Pipeline` remains as a small utility/compatibility path, while `PerformancePipeline` is the main tracker-to-renderer route.
@@ -52,7 +64,10 @@ The older frame-only `Pipeline` remains as a small utility/compatibility path, w
 - `.cpc` readers reject malformed type coercion, records after an end record, invalid frame order, and inconsistent footer metadata.
 - Closing and restarting a pipeline begins a fresh metrics/frame-index session.
 - A failed multi-processor startup rolls back processors that already started.
-- Camera, real MediaPipe model inference, and OBS/virtual-camera behavior still require target-hardware proof.
+- Real MediaPipe model inference, the rig-warp renderer, `.cpc` capture/replay,
+  and the `pyvirtualcam`/OBS sink have been run end to end against a video frame
+  source. Live **webcam** capture on the target Mac still needs a real run; it is
+  blocked only by the macOS camera-permission prompt, not by code.
 
 ## Prior-art findings
 
@@ -64,13 +79,14 @@ LivePortrait is a stronger future rendering experiment because its project code 
 
 ## Near-term sequence
 
-1. Keep the deterministic schema/recording/lifecycle regression suite green on Linux and Apple-Silicon CI.
-2. Smoke-test the optional MediaPipe package/API path in CI without bundling a model.
-3. Prove zero-model webcam preview on target Apple Silicon and record baseline FPS/latency.
-4. Run one authorized local Face Landmarker model and create/replay a real `.cpc` take.
-5. Add a virtual-camera sink suitable for OBS.
-6. Benchmark at least one lightweight live renderer and one high-quality offline renderer.
-7. Freeze a production renderer only after license and target-device performance evidence exist.
+1. Keep the deterministic regression suite green on Linux and Apple-Silicon CI. *(done)*
+2. Smoke-test the optional MediaPipe package/API path in CI without bundling a model. *(done)*
+3. Run one authorized local Face Landmarker model and create/replay a real `.cpc` take. *(done, video frame source)*
+4. Ship a license-clean production-capable renderer behind the seam. *(done: `RigWarpRenderer`)*
+5. Add a virtual-camera sink suitable for OBS. *(done: `VirtualCameraSink`)*
+6. Record a real target **webcam** run (`cpc --doctor --camera 0`, then the live character route). *(pending: camera permission)*
+7. If a higher live frame-rate is needed, overlap tracker and renderer on separate threads.
+8. Optionally add a high-quality offline renderer; freeze a default only after license and device-performance evidence exist.
 
 ## Deliberate non-goals for the foundation
 

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "character-performance-capture"
-version = "0.2.0"
+version = "1.0.0rc1"
 description = "Local-first, model-agnostic character performance capture pipeline."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -15,7 +15,12 @@ dependencies = [
 
 [project.optional-dependencies]
 tracker-mediapipe = [
-  "mediapipe>=0.10.35,<2",
+  # 1.0.x aborts the process on headless macOS/arm64 (GPU delegate has no
+  # Metal/GL service); 0.10.35 with the CPU delegate is the validated range.
+  "mediapipe>=0.10.35,<0.11",
+]
+output-virtualcam = [
+  "pyvirtualcam>=0.11,<1",
 ]
 dev = [
   "pytest>=8,<10",

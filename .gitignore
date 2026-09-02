@@ -15,6 +15,9 @@ outputs/
 takes/
 *.cpc
 *.cpc.partial
+
+# Character rig sidecars may encode landmark geometry of a real reference face
+*.rig.json
 *.mp4
 *.mov
 *.mkv

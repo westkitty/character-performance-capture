@@ -9,6 +9,92 @@ import numpy as np
 from .performance import Landmark, PerformanceFrame
 from .pipeline import Frame
 
+_DELEGATES = ("cpu", "gpu")
+
+
+def _resolve_delegate(mp_python: Any, delegate: str) -> Any:
+    key = delegate.lower().strip()
+    if key not in _DELEGATES:
+        raise ValueError(f"tracker delegate must be one of {_DELEGATES}, got {delegate!r}")
+    return getattr(mp_python.BaseOptions.Delegate, key.upper())
+
+
+def create_face_landmarker(
+    model_path: str | Path,
+    *,
+    delegate: str = "cpu",
+    running_mode: str = "VIDEO",
+    num_faces: int = 1,
+    min_face_detection_confidence: float = 0.5,
+    min_face_presence_confidence: float = 0.5,
+    min_tracking_confidence: float = 0.5,
+) -> Any:
+    """Build a configured MediaPipe FaceLandmarker from a local model asset.
+
+    The default ``cpu`` delegate is deliberate: the GPU delegate aborts the
+    process on headless macOS builds without a usable Metal/GL context.
+    """
+
+    model_path = Path(model_path)
+    if not model_path.is_file():
+        raise FileNotFoundError(f"MediaPipe model not found: {model_path}")
+
+    try:
+        import mediapipe as mp
+        from mediapipe.tasks import python as mp_python
+    except ImportError as exc:  # pragma: no cover - exercised only without the extra
+        raise RuntimeError(
+            "MediaPipe tracker requested but mediapipe is not installed. "
+            "Install character-performance-capture[tracker-mediapipe]."
+        ) from exc
+
+    vision = mp.tasks.vision
+    mode = getattr(vision.RunningMode, running_mode.upper(), None)
+    if mode is None:
+        raise ValueError(f"unknown MediaPipe running mode: {running_mode!r}")
+
+    options = vision.FaceLandmarkerOptions(
+        base_options=mp_python.BaseOptions(
+            model_asset_path=str(model_path),
+            delegate=_resolve_delegate(mp_python, delegate),
+        ),
+        running_mode=mode,
+        num_faces=num_faces,
+        min_face_detection_confidence=min_face_detection_confidence,
+        min_face_presence_confidence=min_face_presence_confidence,
+        min_tracking_confidence=min_tracking_confidence,
+        output_face_blendshapes=True,
+        output_facial_transformation_matrixes=True,
+    )
+    return vision.FaceLandmarker.create_from_options(options)
+
+
+def _to_mp_image(frame: Frame) -> Any:
+    import mediapipe as mp
+
+    rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    rgb = np.ascontiguousarray(rgb)
+    return mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb)
+
+
+def landmarker_points(
+    landmarker: Any,
+    frame: Frame,
+    *,
+    timestamp_ms: int | None,
+) -> np.ndarray | None:
+    """Run one detection and return normalized ``(N, 2)`` landmarks, or ``None``."""
+
+    mp_image = _to_mp_image(frame)
+    if timestamp_ms is None:
+        result = landmarker.detect(mp_image)
+    else:
+        result = landmarker.detect_for_video(mp_image, timestamp_ms)
+    if not result.face_landmarks:
+        return None
+    face = result.face_landmarks[0]
+    return np.array([[float(p.x), float(p.y)] for p in face], dtype=np.float32)
+
 
 class MediaPipeFaceTracker:
     """Optional MediaPipe Face Landmarker adapter.
@@ -24,45 +110,30 @@ class MediaPipeFaceTracker:
         self,
         model_path: str | Path,
         *,
+        delegate: str = "cpu",
         min_face_detection_confidence: float = 0.5,
         min_face_presence_confidence: float = 0.5,
         min_tracking_confidence: float = 0.5,
     ) -> None:
         self.model_path = Path(model_path)
+        self.delegate = delegate
         self.min_face_detection_confidence = min_face_detection_confidence
         self.min_face_presence_confidence = min_face_presence_confidence
         self.min_tracking_confidence = min_tracking_confidence
-        self._mp: Any = None
         self._landmarker: Any = None
         self._last_timestamp_ms = -1
 
     def start(self) -> None:
         if self._landmarker is not None:
             return
-        if not self.model_path.is_file():
-            raise FileNotFoundError(f"MediaPipe model not found: {self.model_path}")
-
-        try:
-            import mediapipe as mp
-        except ImportError as exc:
-            raise RuntimeError(
-                "MediaPipe tracker requested but mediapipe is not installed. "
-                "Install character-performance-capture[tracker-mediapipe]."
-            ) from exc
-
-        vision = mp.tasks.vision
-        options = vision.FaceLandmarkerOptions(
-            base_options=mp.tasks.BaseOptions(model_asset_path=str(self.model_path)),
-            running_mode=vision.RunningMode.VIDEO,
-            num_faces=1,
+        self._landmarker = create_face_landmarker(
+            self.model_path,
+            delegate=self.delegate,
+            running_mode="VIDEO",
             min_face_detection_confidence=self.min_face_detection_confidence,
             min_face_presence_confidence=self.min_face_presence_confidence,
             min_tracking_confidence=self.min_tracking_confidence,
-            output_face_blendshapes=True,
-            output_facial_transformation_matrixes=True,
         )
-        self._mp = mp
-        self._landmarker = vision.FaceLandmarker.create_from_options(options)
         self._last_timestamp_ms = -1
 
     def track(
@@ -75,10 +146,7 @@ class MediaPipeFaceTracker:
         if self._landmarker is None:
             self.start()
 
-        rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        rgb = np.ascontiguousarray(rgb)
-        mp_image = self._mp.Image(image_format=self._mp.ImageFormat.SRGB, data=rgb)
-
+        mp_image = _to_mp_image(frame)
         timestamp_ms = round(timestamp_s * 1000.0)
         if timestamp_ms <= self._last_timestamp_ms:
             timestamp_ms = self._last_timestamp_ms + 1
@@ -139,5 +207,4 @@ class MediaPipeFaceTracker:
             return
         self._landmarker.close()
         self._landmarker = None
-        self._mp = None
         self._last_timestamp_ms = -1
