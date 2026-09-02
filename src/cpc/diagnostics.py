@@ -71,18 +71,27 @@ def _system_report() -> dict[str, str | None]:
 
 
 def probe_runtime(
-    config: CameraConfig,
+    source: CameraConfig | CameraProbeSource,
     *,
     tracker: PerformanceTracker,
     sample_frames: int = 60,
     camera_factory: CameraFactory = CameraSource,
 ) -> dict[str, Any]:
-    """Measure the real local capture/tracker path without persisting camera pixels."""
+    """Measure the real local capture/tracker path without persisting camera pixels.
+
+    ``source`` may be a :class:`CameraConfig` (built via ``camera_factory``) or
+    any already-constructed frame source (camera or video file).
+    """
 
     if sample_frames < 1:
         raise ValueError("sample_frames must be at least 1")
 
-    camera = camera_factory(config)
+    if isinstance(source, CameraConfig):
+        config = source
+        camera = camera_factory(config)
+    else:
+        config = None
+        camera = source
     read_times: list[float] = []
     tracker_times: list[float] = []
     tracked_frames = 0
@@ -125,6 +134,11 @@ def probe_runtime(
     if camera_info is None:
         raise RuntimeError("camera probe did not produce camera information")
 
+    requested = (
+        {"width": config.width, "height": config.height, "fps": config.fps}
+        if config is not None
+        else {"width": None, "height": None, "fps": None}
+    )
     return {
         "schema_version": 1,
         "generated_at_utc": datetime.now(UTC).isoformat(),
@@ -135,13 +149,10 @@ def probe_runtime(
             "model_downloaded": False,
         },
         "camera": {
-            "index": config.index,
+            "index": config.index if config is not None else None,
+            "kind": type(camera).__name__,
             "backend": camera_info.backend,
-            "requested": {
-                "width": config.width,
-                "height": config.height,
-                "fps": config.fps,
-            },
+            "requested": requested,
             "reported": {
                 "width": camera_info.width,
                 "height": camera_info.height,

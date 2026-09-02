@@ -7,11 +7,11 @@
   "project_name": "Character Performance Capture",
   "project_root": "westkitty/character-performance-capture",
   "artifact_path": null,
-  "state_revision": 8,
+  "state_revision": 9,
   "last_updated": "2026-09-01",
   "current_baseline": {
-    "identity": "code 3a67449a837835dd97940df649fb446e671ca010; governance 6b7c5652f1989d3325cc82a46e87a00978e6bc72",
-    "state": "partially-verified",
+    "identity": "code aaf1f98331062a2360f20b6e6a25becb29e29583 on feat/v1-character-renderer (pre-merge); main merge commit supersedes; governance ruleset id 22061363 active on main",
+    "state": "release-candidate",
     "last_verified": "2026-09-01"
   },
   "scope_boundaries": [
@@ -32,13 +32,14 @@
 
 ## 2. Current Baseline
 
-- **Primary code artifact:** `3a67449a837835dd97940df649fb446e671ca010`
-- **Repository governance artifact:** `6b7c5652f1989d3325cc82a46e87a00978e6bc72`
-- **Baseline state:** `partially-verified`
-- **Source/build/install identity:** CPC v0.2.0 with strict portable `PerformanceFrame`, tracker/renderer pipeline, hardened `.cpc` recording/replay, optional MediaPipe adapter, CLI recording/inspection, local-only `--doctor` hardware diagnostics, 26 regression tests, explicit proprietary licensing, and a stable aggregate `required-ci` status job.
-- **Verified deterministic route:** schema, record/replay integrity, no-overwrite finalization, pipeline lifecycle/restart behavior, diagnostic report logic and cleanup, Linux/macOS installation, Ruff, pytest, optional MediaPipe package/API smoke, and aggregate CI-gate behavior.
-- **Active physical validation route:** `cpc --doctor --camera 0 --doctor-frames 120`; implemented but not yet run against an actual target webcam.
-- **Verification evidence:** GitHub Actions run `33579448271` completed successfully for governance commit `6b7c5652f1989d3325cc82a46e87a00978e6bc72`. Ubuntu core, macOS core, MediaPipe smoke, and the aggregate `required-ci` job all completed successfully; the core suite contains 26 passing tests.
+- **Primary code artifact:** `feat/v1-character-renderer` @ `aaf1f98331062a2360f20b6e6a25becb29e29583` (pre-merge); the `main` merge commit supersedes this on merge.
+- **Repository governance artifact:** active `main` ruleset id `22061363`.
+- **Baseline state:** `release-candidate` (CPC `1.0.0rc1`).
+- **Source/build/install identity:** strict portable `PerformanceFrame`; tracker→performance→renderer pipeline; hardened `.cpc` record/replay; optional MediaPipe Face Landmarker adapter (CPU delegate default, `>=0.10.35,<0.11`); `VideoFileSource` frame source; `RigWarpRenderer` deterministic 2D landmark-driven character renderer with an authored/derived rig sidecar contract; optional `VirtualCameraSink` (`pyvirtualcam`, OBS backend); coherent grouped CLI (`cpc --help`); mp4 rendered-preview recorder; local-only `--doctor`; 69 regression tests; explicit proprietary licensing; stable aggregate `required-ci`; enforced `main` ruleset.
+- **Verified deterministic route:** schema, record/replay integrity, no-overwrite finalization, pipeline lifecycle/restart, diagnostic report logic and cleanup, geometry (similarity transform / clamping / triangulation / warp), rig load+validation, rig-warp renderer safe-degradation and reactivity, `VideoFileSource` lifecycle, `VirtualCameraSink` negotiation/letterbox/absent-backend error, CLI wiring, Linux/macOS install, Ruff, pytest, MediaPipe package/API smoke, aggregate CI-gate behavior.
+- **Real (non-deterministic) routes executed on this machine** — see section 5 VER-014..VER-018 — using a local video frame source (`~/.cache/cpc-validation/driver.mp4`), the Google-hosted Apache-2.0 `face_landmarker.task` (downloaded outside the repo, not committed), and a procedurally drawn cartoon character with a derived rig.
+- **Still pending real run:** `cpc --doctor --camera 0` and the live character route against an actual **webcam** (blocked by the macOS camera-permission prompt, not by code).
+- **Prior verification evidence:** GitHub Actions run `33579448271` (rev 8) — Ubuntu/macOS core, MediaPipe smoke, and `required-ci` all successful. New evidence for this revision lands on the PR CI run for `feat/v1-character-renderer`.
 
 ## 3. Artifact Contract
 
@@ -70,46 +71,46 @@ The project is a clean-room implementation with a testable headless core. The pr
 - **VER-007 — Repository quality gate:** Ruff and pytest pass on both Ubuntu and macOS.
 - **VER-008 — MediaPipe dependency/API smoke:** The optional MediaPipe dependency installs on the macOS CI runner, `mediapipe.tasks.vision` is present, and `tests/test_mediapipe_tracker.py` passes. This does not prove real `.task` inference.
 - **VER-009 — Documentation alignment:** Architecture, performance-capture, README, hardware-validation, and repository-governance docs describe the implemented v0.2 seams and current evidence boundary.
-- **VER-010 — Diagnostic harness logic:** Tests verify hardware-report construction, active-backend/property reporting through `CameraSource.info()`, tracker/camera cleanup on failure, sample-count validation, privacy flags, and requested-versus-reported camera metadata handling.
-- **VER-011 — Explicit repository license:** A top-level `LICENSE` now states the repository is proprietary / all rights reserved and explicitly says public visibility is not an open-source grant.
-- **VER-012 — Stable aggregate CI gate:** GitHub Actions run `33579448271` completed with `required-ci` successful after the Linux, macOS, and MediaPipe verification lanes all succeeded.
+- **VER-010 — Diagnostic harness logic:** Tests verify hardware-report construction, active-backend/property reporting through `CameraSource.info()`, tracker/camera cleanup on failure, sample-count validation, privacy flags, and requested-versus-reported camera metadata handling. `probe_runtime` now also accepts any pre-built frame source (camera or `VideoFileSource`).
+- **VER-011 — Explicit repository license:** A top-level `LICENSE` states the repository is proprietary / all rights reserved and that public visibility is not an open-source grant.
+- **VER-012 — Stable aggregate CI gate:** GitHub Actions run `33579448271` completed with `required-ci` successful after the Linux, macOS, and MediaPipe lanes.
+- **VER-013 — Renderer / geometry / rig determinism:** 43 new regression tests. `test_geometry.py` proves the similarity transform recovers a known scale/rotation/translation, clamping bounds pathological (`inf`/`nan`/`1e30`) input, Delaunay indices are valid, and the warp is identity when src==dst. `test_rig.py` round-trips a rig and rejects nine malformed shapes. `test_renderer.py` proves untracked / low-confidence / short-landmark / wild-geometry frames degrade safely to the reference, a shifted mesh visibly changes the output while staying finite/uint8, and `close()` is idempotent and restartable. `test_video_source.py` and `test_virtualcam.py` cover the new source/sink lifecycles. `test_app_cli.py` covers CLI wiring. Full suite: 69 passing.
+- **VER-014 — Real MediaPipe inference (video frames):** `cpc --doctor --video driver.mp4 --loop --tracker mediapipe --model <apache-2.0 face_landmarker.task> --doctor-frames 120` — model loads, 120 frames reach the tracker, 108/120 tracked (0.90 rate), tracker processing 13.3 ms avg / 13.8 ms p95, cleanup succeeds. `mediapipe==1.0.1` aborts the process on this headless M1 (GPU delegate, no Metal service); `0.10.35` + CPU delegate is the validated range and is now pinned.
+- **VER-015 — Rig-warp renderer live proof (video frames):** `cpc --video driver.mp4 --loop --mirror --tracker mediapipe --model ... --render rig --character cartoon.png --record-video rendered.mp4 --frames 150` produced 150 rendered frames, all unique (mean frame-to-frame Δ up to 3.5/255), character identity preserved, reacting to head roll/yaw/pitch and expression from real tracking.
+- **VER-016 — Real `.cpc` capture/replay (video frames + real tracker):** the same run recorded `validation.cpc` (150 frames, complete, 8.16 s coherent duration); frame records carry only portable state (`blendshapes`, `landmarks`, `face_transform`, …) with no pixel keys; `--inspect-performance` parses it fully. A SIGTERM mid-record left `interrupted.cpc.partial` (104 frames, "partial/recoverable"), no final file written — no-overwrite and crash-tolerance hold with the real tracker in the loop.
+- **VER-017 — Virtual-camera sink end-to-end (send side):** `cpc --video driver.mp4 --loop --tracker mediapipe --model ... --render rig --character cartoon.png --virtual-camera --vcam-size 1280x720 --frames 240` opened the OBS Virtual Camera backend, negotiated 1280x720, letter-boxed and sent 240 rendered frames with no "pixel buffer size mismatch", and closed cleanly. Max RSS ~212 MB, flat across 240–300 frame soaks. Reading the stream back hits the same camera-permission wall; receive-side confirmation is left to OBS/another app.
+- **VER-018 — `main` ruleset enforced:** ruleset id `22061363`, `enforcement: active`. `GET /repos/westkitty/character-performance-capture/rules/branches/main` independently returns five rules: `pull_request`, `required_status_checks` (`required-ci`, strict), `non_fast_forward`, `deletion`, `required_linear_history`. Admin bypass scoped to `pull_request`.
 
 ## 6. Known Not Working
 
-No unresolved deterministic-core bug is confirmed at revision 8.
+No unresolved deterministic-core bug is confirmed at revision 9.
 
-- **GOV-001 — Branch enforcement pending:** `main` remains unprotected because the active GitHub connector can read but cannot write repository rulesets/branch-protection settings. The repository now exposes the stable `required-ci` check and documents the exact intended ruleset. GitHub issue #1 tracks the remaining settings-side activation.
+- **GOV-001 — RESOLVED at revision 9:** the `main` ruleset (id `22061363`) is active and GitHub reports all five rules on `refs/heads/main` (see VER-018). Issue #1 is closed once a PR merges green through the gate.
 
-The revision-5 defects remain fixed and regression-covered. No target-hardware failure may be inferred merely because target-hardware validation has not yet been executed.
+The revision-5 defects remain fixed and regression-covered. No target-hardware failure may be inferred merely because a live **webcam** run has not yet been executed — every code path involved has been run against a video frame source.
 
 ## 7. Implemented but Unverified
 
-- **UNV-001:** Real `cpc --doctor` execution against an actual target webcam, including active camera backend, negotiated properties, observed dimensions, frame-read timing, and overall sampled FPS.
-- **UNV-002:** Live FPS / processing-latency / tracking-status overlay in a real camera preview session.
-- **UNV-003:** CLI preview route `cpc --camera 0` on target hardware.
-- **UNV-004:** Real MediaPipe Face Landmarker inference using an explicitly selected local `.task` model.
-- **UNV-005:** Real MediaPipe `--doctor` run measuring tracking rate and processing timing on live frames.
-- **UNV-006:** Live `--record-performance` using real webcam + real tracker inference.
-- **UNV-007:** Any production character renderer.
+- **UNV-001 — remaining:** `cpc --doctor --camera 0` and the live character route against an actual **webcam** (camera open, backend selection, negotiated properties). The identical pipeline is verified via `--video` (VER-014..VER-017); only the live camera device is unexercised, blocked by the macOS TCC prompt.
+- **UNV-002 — remaining:** receive-side virtual-camera consumption (a second app / OBS reading CPC's output). Send side is proven (VER-017).
+- **UNV-004..UNV-007 — RESOLVED via video frame source:** real Face Landmarker inference (VER-014), production character renderer (VER-015), real `.cpc` capture/replay with a real tracker (VER-016), virtual-camera output (VER-017).
 
 ## 8. Unknown or Evidence-Stale State
 
-- **UNK-001:** Actual webcam throughput/latency on target Apple Silicon hardware remains unknown.
-- **UNK-002:** Real MediaPipe tracker throughput and tracking quality remain unknown.
-- **UNK-003:** OBS/virtual-camera availability and end-to-end latency remain unknown.
-- **UNK-004:** Best production renderer remains unfrozen.
-- **UNK-005:** No real Face Landmarker model has been exercised by CPC CI or a target user route.
-- **UNK-007 — Branch enforcement:** The intended `main` ruleset is specified, but GitHub-side enforcement remains disabled until repository settings are changed and independently observed.
+- **UNK-001 — narrowed:** live-webcam throughput/latency on this M1 is unmeasured; video-frame pipeline is ~75 fps tracker, ~30 fps renderer, ~21 fps serial full-pipeline (section 11 / `docs/RENDERER.md`).
+- **UNK-002 — RESOLVED:** MediaPipe `0.10.35` CPU delegate tracks at ~13 ms/frame, 0.90 rate on the validation clip; `1.0.x` aborts headless and is excluded.
+- **UNK-003 — narrowed:** OBS Virtual Camera extension is present and accepts 1280x720 (and other standard landscape sizes; 820x1024 is rejected by the backend). End-to-end latency to a consumer is unmeasured.
+- **UNK-004:** A high-quality offline renderer is still unselected; `RigWarpRenderer` is the frozen v1 default and its limits are documented.
+- **UNK-007 — RESOLVED:** the `main` ruleset is active and independently observable (VER-018).
 
 ## 9. Pending Work
 
-- **PND-001:** Run `cpc --doctor --camera 0 --doctor-frames 120` on target hardware and preserve the JSON metadata report as evidence.
-- **PND-002:** Run `cpc --doctor --tracker mediapipe --model <authorized-face-landmarker.task> --camera 0 --doctor-frames 120` with an explicitly authorized local model and preserve the JSON metadata report.
-- **PND-003:** After real camera/tracker proof, add and validate an optional virtual-camera/OBS output sink.
-- **PND-004:** Prototype a character renderer behind the `PerformanceFrame` seam without importing restricted model licensing into the core.
-- **PND-005:** Benchmark representative target machines with the same doctor sample contract before freezing a live renderer.
-- **PND-006:** If public reuse is later intended, explicitly replace the proprietary license with a project-owner-selected license rather than assuming public visibility grants reuse rights.
-- **PND-007:** Enable a GitHub `main` ruleset requiring `required-ci`, up-to-date pull requests, no force pushes, and no branch deletion; tracked by issue #1.
+- **PND-001:** Run `cpc --doctor --camera 0 --doctor-frames 120` on the target Mac (needs a human to grant camera permission) and preserve the JSON report.
+- **PND-002:** Same with `--tracker mediapipe --model <authorized .task>`.
+- **PND-005:** Confirm the receive side of the virtual camera in OBS or another capture app; record negotiated resolution / observed latency.
+- **PND-006:** If public reuse is later intended, explicitly replace the proprietary license rather than assuming public visibility grants reuse rights.
+- **PND-008:** If a higher live frame-rate is needed, overlap tracker and renderer on separate threads (measured serial full-pipeline ~21 fps).
+- **PND-009:** Record a real webcam run and, once done, promote `1.0.0rc1` → `1.0.0`.
 
 ## 10. Active Decisions, Defaults, and Prohibitions
 
@@ -125,7 +126,11 @@ The revision-5 defects remain fixed and regression-covered. No target-hardware f
 - **DEC-010:** `cpc --doctor` is the canonical evidence bridge for target camera/tracker measurements. It reports requested, backend-reported, and observed state separately and stores no sampled camera pixels.
 - **DEC-011:** Repository source is proprietary / all rights reserved unless the project owner explicitly selects a different license.
 - **DEC-012:** `required-ci` is the stable aggregate status-check name for repository enforcement.
-- **DEC-013:** Do not claim branch protection or required checks are enforced until GitHub reports the rule/ruleset as active.
+- **DEC-013:** Do not claim branch protection or required checks are enforced until GitHub reports the rule/ruleset as active. *(now satisfied — ruleset `22061363`.)*
+- **DEC-014:** `VideoFileSource` is a first-class frame source; the `--video` route is the canonical way to exercise the full pipeline where a live camera is unavailable.
+- **DEC-015:** `RigWarpRenderer` is the frozen v1 default renderer — deterministic, OpenCV-only, no model weights. Characters carry a rig sidecar in MediaPipe 478 topology (authored or `--derive-rig`). Arbitrary-image generative animation is explicitly out of scope for v1.
+- **DEC-016:** MediaPipe is pinned `>=0.10.35,<0.11` with the CPU delegate default; `1.0.x` aborts on headless macOS.
+- **DEC-017:** `pyvirtualcam` (`output-virtualcam` extra) is the virtual-camera backend; core has no hard dependency on it. Rendered frames are letter-boxed into a backend-accepted resolution.
 
 ## 11. Validation and Evidence Matrix
 
@@ -148,13 +153,22 @@ The revision-5 defects remain fixed and regression-covered. No target-hardware f
 
 ## 12. Current Change Scope and Impact Radius
 
-- **Allowed to change next:** GitHub ruleset activation when a settings-capable path is available, bounded fixes revealed by real doctor evidence, optional output sink after physical capture proof, and renderer experiments behind existing interfaces.
+- **Allowed to change next:** a real webcam doctor run and version promotion to `1.0.0`; receive-side virtual-camera confirmation; optional tracker/renderer threading for higher live FPS; an optional high-quality offline renderer behind the same seam.
 - **Must remain unchanged:** clean-room, local-first, media/model exclusion, license isolation, performance portability, strict capture integrity, no-overwrite recording, diagnostic privacy, repository-rights clarity, and pluggable-pipeline invariants.
-- **Mandatory next checks:** retain the 26-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, and `required-ci`; use doctor output as the decisive evidence for real camera/model claims.
-- **Checks deliberately not repeated:** deterministic record/replay/lifecycle evidence remains current because governance hardening did not alter runtime semantics and the full suite re-passed.
-- **Repair class:** repository license ambiguity fixed; stable CI enforcement target implemented and verified; GitHub-side branch-rule activation remains blocked by connector capability.
+- **Mandatory next checks:** retain the 69-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, and `required-ci`; use `--doctor` output as the decisive evidence for real camera/model claims.
+- **Checks deliberately not repeated:** rev-8 deterministic record/replay/lifecycle evidence remains current — the schema and recorder semantics were not touched and the full suite re-passed (69 tests).
+- **Repair class:** v1 feature completion — production renderer, video frame source, virtual-camera sink, coherent CLI, real inference/renderer/`.cpc`/vcam validation, and enforced `main` governance. Remaining gap is a live-webcam run, externally blocked.
 
 ## 13. Compact Revision Log
+
+### Revision 9 — 2026-09-01
+
+- **Artifact/source identity:** `feat/v1-character-renderer` @ `aaf1f98331062a2360f20b6e6a25becb29e29583` (pre-merge); superseded by the `main` merge commit; governance ruleset id `22061363` active on `main`.
+- **State deltas:** Added `VideoFileSource`; `RigWarpRenderer` (deterministic 2D landmark-driven character renderer) + `cpc/geometry.py` + `cpc/rig.py` with an authored/derived rig-sidecar contract; `--derive-rig`; `VirtualCameraSink` (optional `pyvirtualcam`, OBS backend) + `output-virtualcam` extra; grouped/legible CLI with `--video/--loop/--render/--character/--rig/--tracker-delegate/--virtual-camera/--vcam-size/--record-video/--no-window/--frames`; pinned `mediapipe>=0.10.35,<0.11` (CPU delegate default); version `0.2.0` → `1.0.0rc1`; 26 → 69 regression tests; new `docs/RENDERER.md`; refreshed README / ARCHITECTURE / HARDWARE_VALIDATION / REPOSITORY_GOVERNANCE; `.gitignore` ignores `*.rig.json`.
+- **New real evidence (this M1, video frame source):** VER-014 real MediaPipe doctor (108/120 tracked, 13.3 ms/frame); VER-015 rig-warp renderer produced 150 unique reactive frames with identity preserved; VER-016 real `.cpc` take (150 frames complete) + interrupted `.partial` recovery (104 frames) with no overwrite; VER-017 virtual-camera send side (1280x720 negotiated, 240 frames, clean close, RSS ~212 MB flat); VER-018 `main` ruleset active with five rules independently observable.
+- **Model/asset handling:** Google-hosted Apache-2.0 `face_landmarker.task` fetched to `~/.cache/cpc-validation/` outside the repo, not committed. Validation clip, cartoon character, rig sidecar, `.cpc` takes, and rendered mp4 all kept out of Git.
+- **Blocked:** live **webcam** capture — `cv2.VideoCapture(0)` returns "not authorized to capture video"; granting macOS camera permission needs a human. Receive-side virtual-camera confirmation needs OBS/another app (GUI).
+- **Validation not performed:** real webcam doctor, webcam live character route, virtual-camera consumer readback.
 
 ### Revision 8 — 2026-09-01
 
