@@ -6,7 +6,10 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -20,3 +23,22 @@ jobs:
         run: ruff check src tests
       - name: Pytest
         run: pytest
+
+  mediapipe-smoke:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install MediaPipe adapter
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[tracker-mediapipe,dev]'
+      - name: Verify MediaPipe API surface
+        run: >-
+          python -c "import mediapipe as mp;
+          assert hasattr(mp, 'tasks');
+          assert hasattr(mp.tasks, 'vision')"
+      - name: MediaPipe adapter smoke test
+        run: pytest tests/test_mediapipe_tracker.py
