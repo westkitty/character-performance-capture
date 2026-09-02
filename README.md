@@ -41,9 +41,27 @@ pip install -e '.[dev]'
 Optional extras (kept out of the core dependency set):
 
 ```bash
+pip install -e '.[ui]'                  # PySide6 desktop interface (cpc-ui)
 pip install -e '.[tracker-mediapipe]'    # MediaPipe Face Landmarker adapter
 pip install -e '.[output-virtualcam]'    # virtual-camera / OBS output sink
 ```
+
+## Desktop Studio (`cpc-ui`)
+
+Launch the local-first creator studio:
+
+```bash
+cpc-ui
+```
+
+The desktop application provides full capability parity with the CLI, including:
+- **Studio (Live)**: Live webcam / video tracking, real-time rig-warp rendering, live telemetry, `.cpc` & MP4 recording, and OBS virtual camera streaming.
+- **Character & Rig Studio**: Automatic landmark detection, rig derivation, and visual wireframe inspection.
+- **Takes Inspector**: Header validation, duration, effective FPS, and frame count inspector for `.cpc` performance recordings.
+- **Diagnostics Studio**: Subsystem hardware probe and performance benchmark suite (`cpc --doctor` in GUI).
+- **Settings / About**: System dependency readiness dashboard and local preference management.
+
+See [`docs/UI.md`](docs/UI.md) for full desktop studio documentation.
 
 ## Zero-model quickstart
 

@@ -43,16 +43,33 @@ jobs:
       - name: MediaPipe adapter smoke test
         run: pytest tests/test_mediapipe_tracker.py
 
+  ui-smoke:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install UI dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[ui,dev]'
+      - name: UI smoke tests
+        run: |
+          QT_QPA_PLATFORM=offscreen pytest tests/test_ui_*.py
+
   required-ci:
     name: required-ci
     if: ${{ always() }}
-    needs: [test, mediapipe-smoke]
+    needs: [test, mediapipe-smoke, ui-smoke]
     runs-on: ubuntu-latest
     steps:
       - name: Require every verification lane
         env:
           CORE_RESULT: ${{ needs.test.result }}
           MEDIAPIPE_RESULT: ${{ needs.mediapipe-smoke.result }}
+          UI_RESULT: ${{ needs.ui-smoke.result }}
         run: |
           test "$CORE_RESULT" = "success"
           test "$MEDIAPIPE_RESULT" = "success"
+          test "$UI_RESULT" = "success"
