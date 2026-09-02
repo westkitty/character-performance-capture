@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import json
 from contextlib import ExitStack
 from pathlib import Path
 
 import cv2
 
 from .capture import CameraConfig, CameraSource
+from .diagnostics import probe_runtime
 from .mediapipe_tracker import MediaPipeFaceTracker
 from .performance_pipeline import PerformancePipeline
 from .processors import PassthroughRenderer, draw_metrics, draw_tracking_status
@@ -46,6 +48,18 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         metavar="CAPTURE.cpc",
         help="Validate a capture and print a compact summary instead of opening a camera",
+    )
+    parser.add_argument(
+        "--doctor",
+        action="store_true",
+        help="Probe the local camera/tracker path and print a JSON diagnostics report",
+    )
+    parser.add_argument(
+        "--doctor-frames",
+        type=int,
+        default=60,
+        metavar="N",
+        help="Number of frames to sample with --doctor (default: 60)",
     )
     return parser
 
@@ -135,6 +149,19 @@ def main() -> None:
         height=args.height,
         fps=args.fps,
     )
+
+    if args.doctor:
+        try:
+            report = probe_runtime(
+                config,
+                tracker=tracker,
+                sample_frames=args.doctor_frames,
+            )
+        except (FileNotFoundError, RuntimeError, ValueError) as exc:
+            parser.exit(2, f"cpc doctor failed: {exc}\n")
+        print(json.dumps(report, indent=2, sort_keys=True))
+        return
+
     run_preview(
         config,
         tracker=tracker,

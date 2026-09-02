@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import Self
 
@@ -15,6 +16,26 @@ class CameraConfig:
     width: int | None = None
     height: int | None = None
     fps: float | None = None
+
+
+@dataclass(frozen=True)
+class CameraInfo:
+    backend: str
+    width: int
+    height: int
+    fps: float
+
+
+def _camera_dimension(value: float) -> int:
+    if not math.isfinite(value) or value <= 0:
+        return 0
+    return max(0, round(value))
+
+
+def _camera_rate(value: float) -> float:
+    if not math.isfinite(value) or value <= 0:
+        return 0.0
+    return float(value)
 
 
 class CameraSource:
@@ -40,6 +61,21 @@ class CameraSource:
             capture.set(cv2.CAP_PROP_FPS, self.config.fps)
 
         self._capture = capture
+
+    def info(self) -> CameraInfo:
+        if self._capture is None:
+            self.open()
+        assert self._capture is not None
+        try:
+            backend = self._capture.getBackendName()
+        except cv2.error:
+            backend = "unknown"
+        return CameraInfo(
+            backend=backend,
+            width=_camera_dimension(self._capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+            height=_camera_dimension(self._capture.get(cv2.CAP_PROP_FRAME_HEIGHT)),
+            fps=_camera_rate(self._capture.get(cv2.CAP_PROP_FPS)),
+        )
 
     def read(self) -> Frame:
         if self._capture is None:
