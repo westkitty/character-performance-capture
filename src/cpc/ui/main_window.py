@@ -271,7 +271,7 @@ class MainWindow(QMainWindow):
 
     def _copy_cli_command(self) -> None:
         cfg = self.live_workspace.get_session_config()
-        cmd = cfg.to_cli_command()
+        cmd = cfg.to_command_string()
         QApplication.clipboard().setText(cmd)
         self.status_bar.showMessage("CLI command copied to clipboard", 3000)
 

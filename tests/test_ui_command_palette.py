@@ -70,3 +70,18 @@ def test_command_palette_key_navigation(qapp):
     assert dialog._list_widget.currentRow() == 0
 
     dialog.close()
+
+
+def test_main_window_copy_cli_command(qapp):
+    from cpc.ui.main_window import MainWindow
+
+    win = MainWindow()
+    win.show()
+
+    # Verify _copy_cli_command executes cleanly and sets clipboard
+    win._copy_cli_command()
+    clipboard_text = QApplication.clipboard().text()
+    assert clipboard_text.startswith("cpc")
+    assert "CLI command copied to clipboard" in win.status_bar.currentMessage()
+
+    win.close()
