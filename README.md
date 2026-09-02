@@ -16,6 +16,7 @@ Implemented source now contains:
 - no-op tracker and renderer for zero-model foundation testing
 - optional MediaPipe Face Landmarker adapter
 - live FPS / processing latency / tracking-status overlay
+- local-only hardware/tracker diagnostics via `cpc --doctor`
 - unit tests and GitHub Actions checks
 
 Runtime validation on the target Macs is still required before any webcam or throughput claim is considered verified.
@@ -35,6 +36,18 @@ cpc --camera 0 --mirror
 ```
 
 Quit with `q` or Escape.
+
+## Hardware proof
+
+Before relying on preview behavior or throughput claims, run the headless local diagnostics route:
+
+```bash
+cpc --doctor --camera 0 --doctor-frames 120
+```
+
+The JSON report records the active OpenCV camera backend, requested versus reported camera settings, observed frame size, real frame-read timing, overall sampled FPS, runtime versions, and tracker timing. It does not persist camera pixels or require network access.
+
+See [`docs/HARDWARE_VALIDATION.md`](docs/HARDWARE_VALIDATION.md) for the target-hardware validation procedure and the MediaPipe variant.
 
 ## MediaPipe tracker experiment
 
