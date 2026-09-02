@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import time
 from collections.abc import Iterator
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from numbers import Real
 from pathlib import Path
 from typing import Any, Self
 
@@ -38,6 +40,63 @@ class CaptureData:
     duration_s: float
 
 
+def _validate_json_object(value: Any, field_name: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise CaptureFormatError(f"{field_name} must be an object")
+    try:
+        json.dumps(value, allow_nan=False)
+    except (TypeError, ValueError) as exc:
+        raise CaptureFormatError(f"{field_name} must contain JSON-safe finite values") from exc
+    return dict(value)
+
+
+def _require_nonempty_string(payload: dict[str, Any], field_name: str) -> str:
+    value = payload.get(field_name)
+    if not isinstance(value, str) or not value.strip():
+        raise CaptureFormatError(f"{field_name} must be a non-empty string")
+    return value
+
+
+def _expected_duration(
+    frame_count: int,
+    first_timestamp: float | None,
+    last_timestamp: float | None,
+) -> float:
+    if frame_count < 2 or first_timestamp is None or last_timestamp is None:
+        return 0.0
+    return max(0.0, last_timestamp - first_timestamp)
+
+
+def _validate_footer(
+    payload: dict[str, Any],
+    *,
+    frame_count: int,
+    first_timestamp: float | None,
+    last_timestamp: float | None,
+) -> float:
+    declared_count = payload.get("frame_count")
+    if type(declared_count) is not int or declared_count < 0:
+        raise CaptureFormatError("end record frame_count must be a non-negative integer")
+    if declared_count != frame_count:
+        raise CaptureFormatError(
+            f"end record declares {declared_count} frames but file contains {frame_count}"
+        )
+
+    raw_duration = payload.get("duration_s")
+    if isinstance(raw_duration, bool) or not isinstance(raw_duration, Real):
+        raise CaptureFormatError("end record duration_s must be a finite non-negative number")
+    duration_s = float(raw_duration)
+    if not math.isfinite(duration_s) or duration_s < 0.0:
+        raise CaptureFormatError("end record duration_s must be a finite non-negative number")
+
+    expected = _expected_duration(frame_count, first_timestamp, last_timestamp)
+    if not math.isclose(duration_s, expected, rel_tol=1e-9, abs_tol=1e-9):
+        raise CaptureFormatError(
+            f"end record duration_s {duration_s} does not match frame timestamps {expected}"
+        )
+    return duration_s
+
+
 class PerformanceRecorder:
     """Crash-tolerant JSONL recorder for portable performance data only."""
 
@@ -51,9 +110,17 @@ class PerformanceRecorder:
     ) -> None:
         self.path = Path(path)
         self.partial_path = Path(f"{self.path}.partial")
+        if not isinstance(tracker, str) or not tracker.strip():
+            raise ValueError("tracker must be a non-empty string")
+        if not isinstance(profile, str) or not profile.strip():
+            raise ValueError("profile must be a non-empty string")
         self.tracker = tracker
         self.profile = profile
         self.metadata = dict(metadata or {})
+        try:
+            json.dumps(self.metadata, allow_nan=False)
+        except (TypeError, ValueError) as exc:
+            raise ValueError("metadata must contain JSON-safe finite values") from exc
         self._file = None
         self._frame_count = 0
         self._first_timestamp: float | None = None
@@ -70,42 +137,56 @@ class PerformanceRecorder:
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._file = self.partial_path.open("x", encoding="utf-8", newline="\n")
-        self._write_record(
-            {
-                "record_type": "header",
-                "format": FORMAT_NAME,
-                "version": FORMAT_VERSION,
-                "tracker": self.tracker,
-                "profile": self.profile,
-                "started_at_utc": datetime.now(UTC).isoformat(),
-                "metadata": self.metadata,
-            }
-        )
+        try:
+            self._write_record(
+                {
+                    "record_type": "header",
+                    "format": FORMAT_NAME,
+                    "version": FORMAT_VERSION,
+                    "tracker": self.tracker,
+                    "profile": self.profile,
+                    "started_at_utc": datetime.now(UTC).isoformat(),
+                    "metadata": self.metadata,
+                }
+            )
+        except Exception:
+            self._file.close()
+            self._file = None
+            raise
 
     def write(self, frame: PerformanceFrame) -> None:
-        if self._file is None:
-            self.start()
+        try:
+            if self._file is None:
+                self.start()
 
-        if self._last_frame_index is not None and frame.frame_index <= self._last_frame_index:
-            raise ValueError("capture frame_index values must be strictly increasing")
-        if self._last_timestamp is not None and frame.timestamp_s < self._last_timestamp:
-            raise ValueError("capture timestamps must be monotonically increasing")
+            if self._last_frame_index is not None and frame.frame_index <= self._last_frame_index:
+                raise ValueError("capture frame_index values must be strictly increasing")
+            if self._last_timestamp is not None and frame.timestamp_s < self._last_timestamp:
+                raise ValueError("capture timestamps must be monotonically increasing")
 
-        self._write_record({"record_type": "frame", "frame": frame.to_dict()})
-        self._last_frame_index = frame.frame_index
-        self._last_timestamp = frame.timestamp_s
-        if self._first_timestamp is None:
-            self._first_timestamp = frame.timestamp_s
-        self._frame_count += 1
+            self._write_record({"record_type": "frame", "frame": frame.to_dict()})
+            self._last_frame_index = frame.frame_index
+            self._last_timestamp = frame.timestamp_s
+            if self._first_timestamp is None:
+                self._first_timestamp = frame.timestamp_s
+            self._frame_count += 1
+        except Exception:
+            try:
+                self.close(commit=False)
+            except Exception:
+                pass
+            raise
 
     def close(self, *, commit: bool = True) -> None:
         if self._file is None:
             return
 
         if commit:
-            duration_s = 0.0
-            if self._first_timestamp is not None and self._last_timestamp is not None:
-                duration_s = max(0.0, self._last_timestamp - self._first_timestamp)
+            duration_s = _expected_duration(
+                self._frame_count,
+                self._first_timestamp,
+                self._last_timestamp,
+            )
             self._write_record(
                 {
                     "record_type": "end",
@@ -120,7 +201,11 @@ class PerformanceRecorder:
         self._file = None
 
         if commit:
-            os.replace(self.partial_path, self.path)
+            try:
+                os.link(self.partial_path, self.path)
+            except FileExistsError as exc:
+                raise FileExistsError(f"capture appeared before commit: {self.path}") from exc
+            self.partial_path.unlink()
 
     def _write_record(self, payload: dict[str, Any]) -> None:
         assert self._file is not None
@@ -160,13 +245,19 @@ def _parse_header(payload: dict[str, Any]) -> CaptureHeader:
         raise CaptureFormatError("first record must be a header")
     if payload.get("format") != FORMAT_NAME:
         raise CaptureFormatError("unsupported capture format")
-    if payload.get("version") != FORMAT_VERSION:
+    if type(payload.get("version")) is not int or payload.get("version") != FORMAT_VERSION:
         raise CaptureFormatError(f"unsupported capture version: {payload.get('version')}")
+
+    tracker = _require_nonempty_string(payload, "tracker")
+    profile = _require_nonempty_string(payload, "profile")
+    started_at_utc = _require_nonempty_string(payload, "started_at_utc")
+    metadata = _validate_json_object(payload.get("metadata", {}), "header metadata")
+
     return CaptureHeader(
-        tracker=str(payload["tracker"]),
-        profile=str(payload["profile"]),
-        started_at_utc=str(payload["started_at_utc"]),
-        metadata=dict(payload.get("metadata", {})),
+        tracker=tracker,
+        profile=profile,
+        started_at_utc=started_at_utc,
+        metadata=metadata,
     )
 
 
@@ -192,21 +283,41 @@ def iter_capture_frames(path: str | Path) -> Iterator[PerformanceFrame]:
         raise CaptureFormatError("capture is empty") from exc
 
     last_index: int | None = None
+    first_timestamp: float | None = None
     last_timestamp: float | None = None
+    frame_count = 0
+    footer_seen = False
+
     for payload in records:
+        if footer_seen:
+            raise CaptureFormatError("record appears after end record")
+
         record_type = payload.get("record_type")
-        if record_type == "end":
-            break
-        if record_type != "frame":
+        if record_type == "frame":
+            frame_payload = payload.get("frame")
+            if not isinstance(frame_payload, dict):
+                raise CaptureFormatError("frame record must contain a frame object")
+            frame = PerformanceFrame.from_dict(frame_payload)
+            if last_index is not None and frame.frame_index <= last_index:
+                raise CaptureFormatError("frame_index values are not strictly increasing")
+            if last_timestamp is not None and frame.timestamp_s < last_timestamp:
+                raise CaptureFormatError("timestamps are not monotonically increasing")
+            last_index = frame.frame_index
+            last_timestamp = frame.timestamp_s
+            if first_timestamp is None:
+                first_timestamp = frame.timestamp_s
+            frame_count += 1
+            yield frame
+        elif record_type == "end":
+            _validate_footer(
+                payload,
+                frame_count=frame_count,
+                first_timestamp=first_timestamp,
+                last_timestamp=last_timestamp,
+            )
+            footer_seen = True
+        else:
             raise CaptureFormatError(f"unknown record type: {record_type!r}")
-        frame = PerformanceFrame.from_dict(payload["frame"])
-        if last_index is not None and frame.frame_index <= last_index:
-            raise CaptureFormatError("frame_index values are not strictly increasing")
-        if last_timestamp is not None and frame.timestamp_s < last_timestamp:
-            raise CaptureFormatError("timestamps are not monotonically increasing")
-        last_index = frame.frame_index
-        last_timestamp = frame.timestamp_s
-        yield frame
 
 
 def read_capture(path: str | Path) -> CaptureData:
@@ -218,41 +329,44 @@ def read_capture(path: str | Path) -> CaptureData:
 
     frames: list[PerformanceFrame] = []
     footer: dict[str, Any] | None = None
+    first_timestamp: float | None = None
     last_index: int | None = None
     last_timestamp: float | None = None
 
     for payload in records:
+        if footer is not None:
+            raise CaptureFormatError("record appears after end record")
+
         record_type = payload.get("record_type")
         if record_type == "frame":
-            if footer is not None:
-                raise CaptureFormatError("frame record appears after end record")
-            frame = PerformanceFrame.from_dict(payload["frame"])
+            frame_payload = payload.get("frame")
+            if not isinstance(frame_payload, dict):
+                raise CaptureFormatError("frame record must contain a frame object")
+            frame = PerformanceFrame.from_dict(frame_payload)
             if last_index is not None and frame.frame_index <= last_index:
                 raise CaptureFormatError("frame_index values are not strictly increasing")
             if last_timestamp is not None and frame.timestamp_s < last_timestamp:
                 raise CaptureFormatError("timestamps are not monotonically increasing")
             last_index = frame.frame_index
             last_timestamp = frame.timestamp_s
+            if first_timestamp is None:
+                first_timestamp = frame.timestamp_s
             frames.append(frame)
         elif record_type == "end":
-            if footer is not None:
-                raise CaptureFormatError("capture contains multiple end records")
             footer = payload
         else:
             raise CaptureFormatError(f"unknown record type: {record_type!r}")
 
     complete = footer is not None
     if footer is not None:
-        declared_count = int(footer.get("frame_count", -1))
-        if declared_count != len(frames):
-            raise CaptureFormatError(
-                f"end record declares {declared_count} frames but file contains {len(frames)}"
-            )
-        duration_s = float(footer.get("duration_s", 0.0))
-    elif len(frames) >= 2:
-        duration_s = max(0.0, frames[-1].timestamp_s - frames[0].timestamp_s)
+        duration_s = _validate_footer(
+            footer,
+            frame_count=len(frames),
+            first_timestamp=first_timestamp,
+            last_timestamp=last_timestamp,
+        )
     else:
-        duration_s = 0.0
+        duration_s = _expected_duration(len(frames), first_timestamp, last_timestamp)
 
     return CaptureData(
         header=header,
