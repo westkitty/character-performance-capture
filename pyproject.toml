@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "character-performance-capture"
-version = "1.0.0"
+version = "1.1.0"
 description = "Local-first, model-agnostic character performance capture pipeline."
 readme = "README.md"
 requires-python = ">=3.11"
@@ -22,6 +22,9 @@ tracker-mediapipe = [
 output-virtualcam = [
   "pyvirtualcam>=0.11,<1",
 ]
+ui = [
+  "PySide6>=6.6,<7",
+]
 dev = [
   "pytest>=8,<10",
   "ruff>=0.6,<1",
@@ -29,6 +32,7 @@ dev = [
 
 [project.scripts]
 cpc = "cpc.app:main"
+cpc-ui = "cpc.ui.app:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

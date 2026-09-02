@@ -7,15 +7,15 @@
   "project_name": "Character Performance Capture",
   "project_root": "westkitty/character-performance-capture",
   "artifact_path": null,
-  "state_revision": 11,
+  "state_revision": 13,
   "last_updated": "2026-09-02",
   "current_baseline": {
-    "identity": "CPC 1.0.0 on protected main; v1.0.0 implementation baseline f348242b5382628a6124411d4b8abc776d9883d4; governance ruleset 22061363 active.",
-    "state": "production-v1",
+    "identity": "CPC 1.1.0 with Production Creator Studio GUI (cpc-ui); 105 regression tests; backpressure handling; session presets; performance mode; command palette; full native Mac verification; ruleset 22061363 active.",
+    "state": "production-v1.1",
     "last_verified": "2026-09-02"
   },
   "scope_boundaries": [
-    "Local-first webcam performance capture, modular tracking/rendering, preview/OBS output, offline capture/replay, model/license governance, repository governance, and target-hardware validation."
+    "Local-first webcam performance capture, modular tracking/rendering, preview/OBS output, offline capture/replay, model/license governance, repository governance, target-hardware validation, and creator desktop interface."
   ],
   "linked_parent_state": null
 }
@@ -90,6 +90,8 @@ The project is a clean-room implementation with a testable headless core. The pr
 - **VER-022 — Real webcam `.cpc` take validation:** Inspection of the 150-frame webcam take verified full schema validity (52 blendshapes, Tait-Bryan head rotation, 478 landmarks, 10.035s duration, coherent end record) with zero camera pixel keys.
 - **VER-023 — Virtual-camera external consumer receive proof:** CPC streaming live 1280x720 character frames to OBS Virtual Camera concurrently received by an external consumer at 30.29 FPS across 60 sampled frames with continuous frame differences and zero buffer size mismatch.
 - **VER-024 — Relative head rotation calibration & HighGUI macOS context fix:** Head rotation is computed relative to calibrated neutral pose so performer resting posture does not permanently deform the character; HighGUI preview window is initialized cleanly before GL/Metal context creation. Expanded test suite to 77 passing tests.
+- **VER-025 — Desktop Studio GUI (`cpc-ui`):** Local-first PySide6 / Qt creator studio featuring Live Studio (webcam/video ingest, MediaPipe tracking, rig-warp render, live telemetry, `.cpc` & MP4 recording, OBS virtual camera streaming), Character & Rig derivation/visualizer, Takes Inspector, Diagnostics Studio, Settings/About readiness dashboard, 100% CLI parity registry, background QThread workers, and 98 passing unit/smoke tests.
+- **VER-026 — Production Creator Studio Hardening & Verification (CPC 1.1.0):** Elevated semantic dark creator design system; full backpressure handling and display frame coalescing without dropping recording streams; explicit QImage memory buffer ownership safety; session token lifecycle tracking and multi-cycle restart proof; named session presets (save/load/export/import JSON); recent items management; distraction-free Performance Mode (`Cmd+P`) with sleek live HUD; Spotlight-style Quick Actions / Command Palette (`Cmd+K`); dismissible first-run onboarding; post-session summary drawer with Finder reveal and Takes Studio inspection; interactive wireframe visualizer with overwrite protection; 105 automated regression tests passing across all suites.
 
 ## 6. Known Not Working
 
@@ -122,6 +124,7 @@ All core, physical, and virtual-camera paths are verified.
 - **PND-006:** If public reuse is later intended, explicitly replace the proprietary license rather than assuming public visibility grants reuse rights.
 - **PND-008:** Optional tracker/renderer threading for higher live FPS (post-1.0 optimization).
 - **PND-009 — RESOLVED at revision 10:** Real webcam run recorded and promoted to `1.0.0`.
+- **PND-010 — RESOLVED at revision 12:** Desktop studio GUI (`cpc-ui`) implemented and verified.
 
 ## 10. Active Decisions, Defaults, and Prohibitions
 
@@ -142,6 +145,7 @@ All core, physical, and virtual-camera paths are verified.
 - **DEC-015:** `RigWarpRenderer` is the frozen v1 default renderer — deterministic, OpenCV-only, no model weights. Characters carry a rig sidecar in MediaPipe 478 topology (authored or `--derive-rig`). Arbitrary-image generative animation is explicitly out of scope for v1.
 - **DEC-016:** MediaPipe is pinned `>=0.10.35,<0.11` with the CPU delegate default; `1.0.x` aborts on headless macOS.
 - **DEC-017:** `pyvirtualcam` (`output-virtualcam` extra) is the virtual-camera backend; core has no hard dependency on it. Rendered frames are letter-boxed into a backend-accepted resolution.
+- **DEC-018:** PySide6 (`ui` extra) is the desktop studio GUI framework; core headless engine remains usable without GUI dependencies.
 
 ## 11. Validation and Evidence Matrix
 
@@ -165,14 +169,20 @@ All core, physical, and virtual-camera paths are verified.
 | VER-022 | Real webcam `.cpc` take validation | verified | 150 frames, 10.035s, complete portable schema | Target M1 execution | rev 10 | 2026-09-02 | Capture change |
 | VER-023 | Virtual camera consumer receive proof | verified | 60 frames consumed at 1280x720 @ 30.29 FPS | Target M1 execution | rev 10 | 2026-09-02 | Virtual camera change |
 | VER-024 | Expanded 77-test regression suite | verified | 77 passing tests in 0.49s | pytest + Ruff | rev 10 | 2026-09-02 | Test change |
+| VER-025 | Desktop Studio GUI (`cpc-ui`) & 98-test suite | verified | 98 passing tests, 100% CLI parity, background threading, 5 workspaces | pytest + Ruff + UI smoke | rev 12 | 2026-09-02 | UI/workspaces change |
 
 ## 12. Current Change Scope and Impact Radius
 
 - **Allowed to change next:** Optional multi-threaded pipeline optimization (PND-008) for higher live FPS; optional offline generative renderers behind the existing seam.
 - **Must remain unchanged:** clean-room, local-first, media/model exclusion, license isolation, performance portability, strict capture integrity, no-overwrite recording, diagnostic privacy, repository-rights clarity, and pluggable-pipeline invariants.
-- **Mandatory next checks:** retain the 77-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, and `required-ci`.
+- **Mandatory next checks:** retain the 98-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, UI smoke, and `required-ci`.
 
 ## 13. Compact Revision Log
+
+### Revision 12 — 2026-09-02
+
+- **Artifact/source identity:** Feature branch `feat/desktop-ui` incorporating complete desktop studio (`cpc-ui`), `src/cpc/session.py`, `src/cpc/ui/`, 98 passing unit/parity/smoke tests, `docs/UI.md`, and CI `ui-smoke` lane.
+- **State deltas:** Implemented full PySide6 desktop creator studio (`cpc-ui` entry point) covering Studio (Live), Character & Rig Studio, Takes Inspector, Diagnostics Studio, and Settings/About; added capability parity registry mapping 100% of CLI arguments; added `ui` optional dependency group (`PySide6>=6.6,<7`); added comprehensive unit and headless smoke tests in `tests/test_ui_*.py` expanding regression suite from 77 to 98 tests; updated CI workflow with `ui-smoke` job and aggregate `required-ci` gate.
 
 ### Revision 11 — 2026-09-02
 
