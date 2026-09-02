@@ -93,18 +93,9 @@ class ModelSelectorWidget(QWidget):
 
         # Capability Pills Row
         self._caps_widget = QWidget()
-        caps_layout = QHBoxLayout(self._caps_widget)
-        caps_layout.setContentsMargins(0, 0, 0, 0)
-        caps_layout.setSpacing(6)
-        self._cap_pills: list[QLabel] = []
-        for cap in RECOMMENDED_MEDIAPIPE_MODEL.capabilities:
-            pill = QLabel(cap)
-            pill.setStyleSheet(
-                "background-color: #1e1e28; color: #d4d4d8; font-size: 11px; padding: 2px 6px; border-radius: 4px;"
-            )
-            caps_layout.addWidget(pill)
-            self._cap_pills.append(pill)
-        caps_layout.addStretch(1)
+        self._caps_layout = QHBoxLayout(self._caps_widget)
+        self._caps_layout.setContentsMargins(0, 0, 0, 0)
+        self._caps_layout.setSpacing(6)
         card_layout.addWidget(self._caps_widget)
 
         # Action: Install Button (visible when Recommended is not installed)
@@ -237,7 +228,19 @@ class ModelSelectorWidget(QWidget):
         self._desc_lbl.setText(entry.description)
         self._recommended_badge.setVisible(entry.is_recommended)
 
-        # Update capability pills
+        # Update capability pills dynamically
+        while self._caps_layout.count():
+            item = self._caps_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+
+        for cap in entry.capabilities:
+            pill = QLabel(cap)
+            pill.setStyleSheet(
+                "background-color: #1a1a26; color: #d4d4d8; font-size: 11px; padding: 3px 8px; border-radius: 4px; border: 1px solid #28283a;"
+            )
+            self._caps_layout.addWidget(pill)
+        self._caps_layout.addStretch(1)
         self._caps_widget.setVisible(len(entry.capabilities) > 0)
 
         # Update path display

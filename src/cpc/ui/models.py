@@ -253,8 +253,12 @@ class ModelRegistry(QObject):
                 self._models[mid] = entry
 
     def get_entries(self) -> list[ModelEntry]:
-        """Return all available model catalog entries."""
+        """Return all catalog entries (including built-in modes)."""
         return list(self._models.values())
+
+    def get_installable_entries(self) -> list[ModelEntry]:
+        """Return only installable model files (excluding built-in modes like null tracker)."""
+        return [e for e in self._models.values() if e.model_id != NULL_TRACKER_MODEL.model_id]
 
     def get_recommended_entry(self) -> ModelEntry:
         """Return the primary recommended model entry."""

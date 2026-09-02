@@ -63,6 +63,7 @@ class MainWindow(QMainWindow):
 
         # 3. Takes Inspector
         self.takes_workspace = TakesWorkspace()
+        self.takes_workspace.open_live_studio.connect(lambda: self._tabs.setCurrentIndex(0))
         self._tabs.addTab(self.takes_workspace, "Takes")
 
         # 4. Diagnostics

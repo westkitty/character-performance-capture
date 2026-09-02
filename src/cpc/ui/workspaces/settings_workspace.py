@@ -8,6 +8,7 @@ from PySide6.QtGui import QDesktopServices, QFont, QGuiApplication
 from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
+    QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
@@ -31,7 +32,7 @@ def _pkg_version(name: str) -> str | None:
 
 
 class SettingsWorkspace(QWidget):
-    """Settings, Dependency Readiness Dashboard, and About screen."""
+    """Calm Settings, Model Library Manager, Dependency Status, and About screen."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -48,104 +49,26 @@ class SettingsWorkspace(QWidget):
         layout.setSpacing(16)
 
         # -------------------------------------------------------------
-        # 1. Dependency & Hardware Readiness
+        # 0. Header
         # -------------------------------------------------------------
-        readiness_group = QGroupBox("System && Dependency Readiness")
-        r_grid = QGridLayout(readiness_group)
-        r_grid.setContentsMargins(14, 18, 14, 14)
-        r_grid.setSpacing(8)
-
-        # Core Engine
-        self._add_status_row(r_grid, 0, "Core Engine (cpc):", "Active & Verified", "#10b981")
-
-        # PySide6 UI
-        py_ver = _pkg_version("PySide6") or "Active"
-        self._add_status_row(r_grid, 1, "Desktop GUI (PySide6):", f"v{py_ver} Active", "#10b981")
-
-        # OpenCV
-        self._add_status_row(r_grid, 2, "OpenCV Engine:", f"v{cv2.__version__} Active", "#10b981")
-
-        # MediaPipe
-        mp_ver = _pkg_version("mediapipe")
-        if mp_ver:
-            self._add_status_row(r_grid, 3, "MediaPipe Adapter:", f"v{mp_ver} (CPU delegate validated)", "#10b981")
-        else:
-            self._add_status_row(
-                r_grid,
-                3,
-                "MediaPipe Adapter:",
-                "Not Installed (install via: pip install '.[tracker-mediapipe]')",
-                "#f59e0b",
-                copy_cmd="pip install '.[tracker-mediapipe]'",
-            )
-
-        # Virtual Camera
-        vcam_ver = _pkg_version("pyvirtualcam")
-        if vcam_ver:
-            self._add_status_row(r_grid, 4, "Virtual Camera (pyvirtualcam):", f"v{vcam_ver} Installed", "#10b981")
-        else:
-            self._add_status_row(
-                r_grid,
-                4,
-                "Virtual Camera (pyvirtualcam):",
-                "Not Installed (install via: pip install '.[output-virtualcam]')",
-                "#a1a1aa",
-                copy_cmd="pip install '.[output-virtualcam]'",
-            )
-
-        # Full install button row
-        inst_row = QHBoxLayout()
-        copy_all_btn = QPushButton("📋 Copy Full CPC Studio Install Command")
-        copy_all_btn.clicked.connect(lambda: self._copy_cmd("pip install '.[ui,tracker-mediapipe,output-virtualcam]'"))
-        inst_row.addWidget(copy_all_btn)
-        inst_row.addStretch(1)
-        r_grid.addLayout(inst_row, 5, 0, 1, 3)
+        title = QLabel("Settings & Preferences")
+        font_t = QFont(title.font())
+        font_t.setPointSize(16)
+        font_t.setBold(True)
+        title.setFont(font_t)
+        layout.addWidget(title)
 
         # -------------------------------------------------------------
-        # 2. Tracking Models & Library Management
-        # -------------------------------------------------------------
-        models_group = QGroupBox("Tracking Models && Library")
-        m_layout = QVBoxLayout(models_group)
-        m_layout.setContentsMargins(14, 18, 14, 14)
-        m_layout.setSpacing(10)
-
-        from cpc.ui.models import get_managed_models_dir
-
-        self._models_grid = QGridLayout()
-        self._models_grid.setSpacing(8)
-        m_layout.addLayout(self._models_grid)
-
-        self._refresh_models_table()
-
-        m_btn_row = QHBoxLayout()
-        btn_reveal_models = QPushButton("📁 Reveal Models Folder in Finder")
-        btn_reveal_models.clicked.connect(lambda: QDesktopServices.openUrl(f"file://{get_managed_models_dir().resolve()}"))
-        m_btn_row.addWidget(btn_reveal_models)
-
-        btn_import_m = QPushButton("📂 Import Custom Model...")
-        btn_import_m.clicked.connect(self._import_custom_model)
-        m_btn_row.addWidget(btn_import_m)
-
-        btn_reinstall = QPushButton("⚡ Install / Reinstall Recommended Model")
-        btn_reinstall.clicked.connect(self._reinstall_recommended_model)
-        m_btn_row.addWidget(btn_reinstall)
-
-        m_btn_row.addStretch(1)
-        m_layout.addLayout(m_btn_row)
-
-        layout.addWidget(models_group)
-
-        # -------------------------------------------------------------
-        # 3. Local Preferences & Storage
+        # 1. Preferences & Session Defaults
         # -------------------------------------------------------------
         pref_group = QGroupBox("Preferences && Defaults")
         p_layout = QVBoxLayout(pref_group)
-        p_layout.setContentsMargins(14, 18, 14, 14)
+        p_layout.setContentsMargins(14, 16, 14, 14)
         p_layout.setSpacing(10)
 
         # Default Output Folder
         out_row = QHBoxLayout()
-        out_row.addWidget(QLabel("Default Output Directory:"))
+        out_row.addWidget(QLabel("Default Takes Directory:"))
         self._out_dir_edit = QLineEdit(self._settings.get_default_output_directory())
         self._out_dir_edit.textChanged.connect(self._settings.set_default_output_directory)
         out_row.addWidget(self._out_dir_edit, 1)
@@ -167,44 +90,120 @@ class SettingsWorkspace(QWidget):
         p_layout.addLayout(cd_row)
 
         btns_row = QHBoxLayout()
-        self._reset_onboarding_btn = QPushButton("Show Welcome / Onboarding Card")
-        self._reset_onboarding_btn.clicked.connect(self._reset_onboarding)
-        btns_row.addWidget(self._reset_onboarding_btn)
-
-        self._reset_btn = QPushButton("Reset All UI Settings to Default")
+        self._reset_btn = QPushButton("Reset UI Preferences to Default")
         self._reset_btn.clicked.connect(self._reset_settings)
         btns_row.addWidget(self._reset_btn)
+        btns_row.addStretch(1)
         p_layout.addLayout(btns_row)
 
         layout.addWidget(pref_group)
 
         # -------------------------------------------------------------
-        # 3. Privacy & Licensing Architecture
+        # 2. Tracking Models & Library Management
         # -------------------------------------------------------------
-        about_group = QGroupBox("About Character Performance Capture")
-        a_layout = QVBoxLayout(about_group)
-        a_layout.setContentsMargins(14, 18, 14, 14)
-        a_layout.setSpacing(10)
+        models_group = QGroupBox("Tracking Models && Model Library")
+        m_layout = QVBoxLayout(models_group)
+        m_layout.setContentsMargins(14, 16, 14, 14)
+        m_layout.setSpacing(10)
 
-        app_title = QLabel("Character Performance Capture")
-        font = QFont(app_title.font())
-        font.setPointSize(16)
-        font.setBold(True)
-        app_title.setFont(font)
+        from cpc.ui.models import get_managed_models_dir
+
+        self._models_grid = QGridLayout()
+        self._models_grid.setSpacing(8)
+        m_layout.addLayout(self._models_grid)
+
+        self._refresh_models_table()
+
+        m_btn_row = QHBoxLayout()
+        btn_reveal_models = QPushButton("📁  Reveal Models Folder in Finder")
+        btn_reveal_models.clicked.connect(lambda: QDesktopServices.openUrl(f"file://{get_managed_models_dir().resolve()}"))
+        m_btn_row.addWidget(btn_reveal_models)
+
+        btn_import_m = QPushButton("📂  Import Custom Model...")
+        btn_import_m.clicked.connect(self._import_custom_model)
+        m_btn_row.addWidget(btn_import_m)
+
+        btn_reinstall = QPushButton("⚡  Install / Reinstall Recommended Model")
+        btn_reinstall.clicked.connect(self._reinstall_recommended_model)
+        m_btn_row.addWidget(btn_reinstall)
+
+        m_btn_row.addStretch(1)
+        m_layout.addLayout(m_btn_row)
+
+        layout.addWidget(models_group)
+
+        # -------------------------------------------------------------
+        # 3. Dependency Readiness
+        # -------------------------------------------------------------
+        readiness_group = QGroupBox("System && Dependency Status")
+        r_grid = QGridLayout(readiness_group)
+        r_grid.setContentsMargins(14, 16, 14, 14)
+        r_grid.setSpacing(8)
+
+        # Core Engine
+        self._add_status_row(r_grid, 0, "Core Performance Engine:", "Active & Verified", "#10b981")
+
+        # PySide6 UI
+        py_ver = _pkg_version("PySide6") or "Active"
+        self._add_status_row(r_grid, 1, "Desktop Studio (PySide6):", f"v{py_ver} Active", "#10b981")
+
+        # OpenCV
+        self._add_status_row(r_grid, 2, "OpenCV Sensor Engine:", f"v{cv2.__version__} Active", "#10b981")
+
+        # MediaPipe
+        mp_ver = _pkg_version("mediapipe")
+        if mp_ver:
+            self._add_status_row(r_grid, 3, "MediaPipe Adapter:", f"v{mp_ver} (CPU delegate validated)", "#10b981")
+        else:
+            self._add_status_row(
+                r_grid,
+                3,
+                "MediaPipe Adapter:",
+                "Not Installed (install via: pip install '.[tracker-mediapipe]')",
+                "#f59e0b",
+                copy_cmd="pip install '.[tracker-mediapipe]'",
+            )
+
+        # Virtual Camera
+        vcam_ver = _pkg_version("pyvirtualcam")
+        if vcam_ver:
+            self._add_status_row(r_grid, 4, "Virtual Camera Output:", f"v{vcam_ver} Installed", "#10b981")
+        else:
+            self._add_status_row(
+                r_grid,
+                4,
+                "Virtual Camera Output:",
+                "Not Installed (install via: pip install '.[output-virtualcam]')",
+                "#a1a1aa",
+                copy_cmd="pip install '.[output-virtualcam]'",
+            )
+
+        layout.addWidget(readiness_group)
+
+        # -------------------------------------------------------------
+        # 4. About & Architecture
+        # -------------------------------------------------------------
+        about_card = QFrame()
+        about_card.setStyleSheet("background-color: #14141c; border: 1px solid #232330; border-radius: 8px; padding: 14px;")
+        a_layout = QVBoxLayout(about_card)
+        a_layout.setSpacing(8)
+
+        app_title = QLabel("Character Performance Capture (CPC Studio)")
+        font_at = QFont(app_title.font())
+        font_at.setPointSize(14)
+        font_at.setBold(True)
+        app_title.setFont(font_at)
         a_layout.addWidget(app_title)
 
         app_desc = QLabel(
-            "Local-first, model-agnostic character performance capture engine & studio.\n\n"
-            "• Clean-Room Architecture: Independent implementation with modular tracking and deterministic 2D mesh-warp rendering.\n"
-            "• Local-First Privacy: Zero telemetry, zero analytics, zero network calls, zero cloud uploads. Performer state is computed and rendered 100% locally on your machine.\n"
-            "• Performer Data Isolation: .CPC captures store facial landmark vectors and blendshapes, never camera pixels.\n"
-            "• Proprietary License: Copyright © 2026 westkitty. All rights reserved."
+            "Version 1.1.0 • Local-First, Model-Agnostic Performance Capture Engine & Studio.\n"
+            "All tracking inference and 2D mesh-warp rendering executes 100% locally on your machine with zero telemetry."
         )
-        app_desc.setStyleSheet("color: #d4d4d8; line-height: 1.4;")
+        app_desc.setStyleSheet("color: #9ca3af; font-size: 13px; line-height: 1.4;")
         app_desc.setWordWrap(True)
         a_layout.addWidget(app_desc)
 
-        layout.addWidget(about_group)
+        layout.addWidget(about_card)
         layout.addStretch(1)
 
         scroll.setWidget(container)
@@ -226,8 +225,8 @@ class SettingsWorkspace(QWidget):
         grid.addWidget(lbl_val, row, 1)
 
         if copy_cmd:
-            btn_copy = QPushButton("Copy Command")
-            btn_copy.setMaximumWidth(120)
+            btn_copy = QPushButton("Copy Install Command")
+            btn_copy.setMaximumWidth(160)
             btn_copy.clicked.connect(lambda: self._copy_cmd(copy_cmd))
             grid.addWidget(btn_copy, row, 2)
 
@@ -246,13 +245,14 @@ class SettingsWorkspace(QWidget):
             if item.widget():
                 item.widget().deleteLater()
 
-        entries = reg.get_entries()
+        # Only list actual physical model files, NOT built-in null-tracker mode!
+        entries = reg.get_installable_entries()
         for row, e in enumerate(entries):
             status = reg.get_status(e.model_id)
             path = reg.resolve_model_path(e.model_id)
 
             title_lbl = QLabel(e.name)
-            title_lbl.setStyleSheet("font-weight: 600; color: #e4e4e7;")
+            title_lbl.setStyleSheet("font-weight: 600; color: #ffffff;")
 
             status_str = f"● {status.value}" if status == ModelStatus.READY else f"▲ {status.value}"
             color = "#10b981" if status == ModelStatus.READY else ("#f59e0b" if status == ModelStatus.NOT_INSTALLED else "#ef4444")
@@ -261,7 +261,7 @@ class SettingsWorkspace(QWidget):
 
             path_str = f"{path.name} ({path.stat().st_size / (1024*1024):.1f} MB)" if (path and path.is_file()) else "Not installed"
             path_lbl = QLabel(path_str)
-            path_lbl.setStyleSheet("color: #71717a; font-size: 11px;")
+            path_lbl.setStyleSheet("color: #9ca3af; font-size: 12px;")
 
             self._models_grid.addWidget(title_lbl, row, 0)
             self._models_grid.addWidget(status_lbl, row, 1)
@@ -321,10 +321,6 @@ class SettingsWorkspace(QWidget):
     def _on_cd_changed(self, idx: int) -> None:
         sec = 3 if idx == 1 else (5 if idx == 2 else 0)
         self._settings.set_countdown_seconds(sec)
-
-    def _reset_onboarding(self) -> None:
-        self._settings.set_first_run_completed(False)
-        QMessageBox.information(self, "Onboarding Reset", "The welcome card will appear on next launch.")
 
     def _reset_settings(self) -> None:
         reply = QMessageBox.question(

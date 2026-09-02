@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 from PySide6.QtCore import Qt, QTimer, Signal
-from PySide6.QtGui import QColor, QDesktopServices, QFont
+from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -16,6 +16,7 @@ from PySide6.QtWidgets import (
     QPushButton,
     QScrollArea,
     QSplitter,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
@@ -38,7 +39,7 @@ from cpc.ui.worker import SessionWorker
 
 
 class LiveWorkspace(QWidget):
-    """Primary Live Performance Capture Studio workspace with preflight, presets, recentering, countdown, and clean preview."""
+    """Calm, Stage-First Live Performance Studio workspace with Session Strip and Context Inspector."""
 
     open_character_workspace = Signal()
     open_takes_workspace = Signal(Path)
@@ -60,7 +61,7 @@ class LiveWorkspace(QWidget):
 
         self._init_ui()
         self._load_presets_menu()
-        self._update_preflight()
+        self.set_session_config(SessionConfig())
 
     def _init_ui(self) -> None:
         workspace_layout = QVBoxLayout(self)
@@ -68,13 +69,13 @@ class LiveWorkspace(QWidget):
         workspace_layout.setSpacing(0)
 
         # -------------------------------------------------------------
-        # 0. Studio Header Toolbar
+        # 0. Minimal Studio Top Header
         # -------------------------------------------------------------
         self._header_bar = QWidget()
         self._header_bar.setObjectName("topHeaderBar")
         h_layout = QHBoxLayout(self._header_bar)
-        h_layout.setContentsMargins(14, 8, 14, 8)
-        h_layout.setSpacing(10)
+        h_layout.setContentsMargins(16, 8, 16, 8)
+        h_layout.setSpacing(12)
 
         brand_lbl = QLabel("CPC STUDIO")
         brand_lbl.setObjectName("brandTitle")
@@ -84,168 +85,57 @@ class LiveWorkspace(QWidget):
         privacy_badge.setObjectName("privacyBadge")
         h_layout.addWidget(privacy_badge)
 
-        h_layout.addSpacing(10)
+        h_layout.addSpacing(8)
 
-        # Presets selector & controls
-        h_layout.addWidget(QLabel("Preset:"))
-        self._preset_combo = QComboBox()
-        self._preset_combo.setMinimumWidth(170)
-        self._preset_combo.currentIndexChanged.connect(self._on_preset_selected)
-        h_layout.addWidget(self._preset_combo)
-
-        self._save_preset_btn = QPushButton("Save")
-        self._save_preset_btn.setToolTip("Save changes to current preset")
-        self._save_preset_btn.clicked.connect(self._save_current_preset)
-        h_layout.addWidget(self._save_preset_btn)
-
-        self._save_as_preset_btn = QPushButton("Save As...")
-        self._save_as_preset_btn.setToolTip("Save configuration as a new named preset")
-        self._save_as_preset_btn.clicked.connect(self._save_as_new_preset)
-        h_layout.addWidget(self._save_as_preset_btn)
-
-        self._revert_preset_btn = QPushButton("Revert")
-        self._revert_preset_btn.setToolTip("Revert configuration to saved preset")
-        self._revert_preset_btn.clicked.connect(self._revert_current_preset)
-        h_layout.addWidget(self._revert_preset_btn)
-
-        h_layout.addStretch(1)
-
-        # Preflight Readiness Pill
-        self._preflight_pill = QLabel("● Ready")
+        # Contextual Readiness Pill
+        self._preflight_pill = QLabel("● Ready to Perform")
         self._preflight_pill.setStyleSheet("font-weight: 600; font-size: 12px; color: #10b981;")
         h_layout.addWidget(self._preflight_pill)
 
-        # Clean Preview Window Button
-        self._clean_preview_btn = QPushButton("🗗 Clean Preview")
-        self._clean_preview_btn.setToolTip("Open standalone projector / clean preview window (Cmd+Shift+P)")
+        h_layout.addStretch(1)
+
+        # Standalone Projector / Clean Preview
+        self._clean_preview_btn = QPushButton("🗗 Projector")
+        self._clean_preview_btn.setToolTip("Open standalone clean preview window for OBS / secondary monitor (Cmd+Shift+P)")
         self._clean_preview_btn.clicked.connect(self.open_clean_preview)
         h_layout.addWidget(self._clean_preview_btn)
 
-        # Performance Mode Toggle Button
-        self._perf_mode_btn = QPushButton("⛶ Performance Mode")
-        self._perf_mode_btn.setToolTip("Toggle low-distraction full preview view (Cmd+P)")
+        # Performance Mode Fullscreen Stage
+        self._perf_mode_btn = QPushButton("⛶ Fullscreen Stage")
+        self._perf_mode_btn.setToolTip("Toggle distraction-free full-preview stage (Cmd+P)")
         self._perf_mode_btn.clicked.connect(self.toggle_performance_mode)
         h_layout.addWidget(self._perf_mode_btn)
+
+        # Toggle Inspector
+        self._toggle_inspector_btn = QPushButton("⚙ Configure / Inspector")
+        self._toggle_inspector_btn.setToolTip("Open or close the configuration and technical inspector panel")
+        self._toggle_inspector_btn.clicked.connect(self.toggle_inspector)
+        h_layout.addWidget(self._toggle_inspector_btn)
 
         workspace_layout.addWidget(self._header_bar)
 
         # -------------------------------------------------------------
-        # First-Run Quick Start Card (Dismissible)
-        # -------------------------------------------------------------
-        self._first_run_card = QFrame()
-        self._first_run_card.setStyleSheet(
-            "background-color: #141b2d; border: 1px solid #1e3a8a; border-radius: 8px; margin: 8px 14px 0 14px; padding: 14px;"
-        )
-        fr_layout = QVBoxLayout(self._first_run_card)
-        fr_layout.setContentsMargins(12, 12, 12, 12)
-        fr_layout.setSpacing(10)
-
-        fr_header_row = QHBoxLayout()
-        fr_title = QLabel("Welcome to Character Performance Capture Studio")
-        fr_font = QFont(fr_title.font())
-        fr_font.setPointSize(14)
-        fr_font.setBold(True)
-        fr_title.setFont(fr_font)
-        fr_title.setStyleSheet("color: #60a5fa; font-weight: 700;")
-        fr_header_row.addWidget(fr_title, 1)
-
-        fr_close_btn = QPushButton("✕ Dismiss")
-        fr_close_btn.setMinimumWidth(100)
-        fr_close_btn.clicked.connect(self._dismiss_first_run)
-        fr_header_row.addWidget(fr_close_btn)
-        fr_layout.addLayout(fr_header_row)
-
-        fr_desc = QLabel(
-            "Local-first, model-agnostic performance capture engine. All tracking and mesh-warp rendering runs 100% locally on your machine — zero network calls, zero cloud telemetry, and camera pixels are never stored."
-        )
-        fr_desc.setStyleSheet("color: #cbd5e1; font-size: 13px; line-height: 1.4;")
-        fr_desc.setWordWrap(True)
-        fr_layout.addWidget(fr_desc)
-
-        fr_btns_row = QHBoxLayout()
-        fr_btns_row.setSpacing(10)
-        btn_cam = QPushButton("📹 Start with Camera")
-        btn_cam.setMinimumHeight(32)
-        btn_cam.clicked.connect(lambda: self._quick_start("camera"))
-        btn_vid = QPushButton("🎬 Open Performer Video")
-        btn_vid.setMinimumHeight(32)
-        btn_vid.clicked.connect(lambda: self._quick_start("video"))
-        btn_char = QPushButton("🎨 Set Up Character && Rig")
-        btn_char.setMinimumHeight(32)
-        btn_char.clicked.connect(lambda: self.open_character_workspace.emit())
-        btn_diag = QPushButton("🩺 Run Hardware Check")
-        btn_diag.setMinimumHeight(32)
-        btn_diag.clicked.connect(lambda: self.open_diagnostics_workspace.emit())
-
-        fr_btns_row.addWidget(btn_cam)
-        fr_btns_row.addWidget(btn_vid)
-        fr_btns_row.addWidget(btn_char)
-        fr_btns_row.addWidget(btn_diag)
-        fr_layout.addLayout(fr_btns_row)
-
-        if self._settings.is_first_run_completed():
-            self._first_run_card.setVisible(False)
-
-        workspace_layout.addWidget(self._first_run_card)
-
-        # -------------------------------------------------------------
-        # Main Splitter (Left Setup, Center Canvas, Right Telemetry)
+        # 1. Main Stage & Inspector Splitter
         # -------------------------------------------------------------
         self._splitter = QSplitter(Qt.Horizontal)
         self._splitter.setHandleWidth(2)
 
-        # 1. Left Column: Setup Controls
-        self._left_scroll = QScrollArea()
-        self._left_scroll.setWidgetResizable(True)
-        self._left_scroll.setMinimumWidth(320)
-        self._left_scroll.setMaximumWidth(460)
+        # -------------------------------------------------------------
+        # 1A. THE STAGE (Left / Main Working Surface)
+        # -------------------------------------------------------------
+        stage_widget = QWidget()
+        stage_layout = QVBoxLayout(stage_widget)
+        stage_layout.setContentsMargins(12, 12, 12, 10)
+        stage_layout.setSpacing(8)
 
-        left_widget = QWidget()
-        left_layout = QVBoxLayout(left_widget)
-        left_layout.setContentsMargins(10, 10, 10, 10)
-        left_layout.setSpacing(12)
-
-        self.source_panel = SourcePanel()
-        self.source_panel.config_changed.connect(self._on_config_changed)
-        left_layout.addWidget(self.source_panel)
-
-        self.tracker_panel = TrackerPanel()
-        self.tracker_panel.config_changed.connect(self._on_config_changed)
-        left_layout.addWidget(self.tracker_panel)
-
-        self.renderer_panel = RendererPanel()
-        self.renderer_panel.config_changed.connect(self._on_config_changed)
-        self.renderer_panel.open_character_workspace.connect(lambda: self.open_character_workspace.emit())
-        left_layout.addWidget(self.renderer_panel)
-
-        self.outputs_panel = OutputsPanel()
-        self.outputs_panel.config_changed.connect(self._on_config_changed)
-        left_layout.addWidget(self.outputs_panel)
-
-        self.advanced_panel = AdvancedPanel()
-        self.advanced_panel.config_changed.connect(self._on_config_changed)
-        left_layout.addWidget(self.advanced_panel)
-
-        self.cmd_preview = CommandPreviewWidget()
-        left_layout.addWidget(self.cmd_preview)
-
-        left_layout.addStretch(1)
-        self._left_scroll.setWidget(left_widget)
-        self._splitter.addWidget(self._left_scroll)
-
-        # 2. Center Column: Live Preview & Transport Controls
-        center_widget = QWidget()
-        center_layout = QVBoxLayout(center_widget)
-        center_layout.setContentsMargins(10, 10, 10, 10)
-        center_layout.setSpacing(10)
-
+        # Primary Live Performance Canvas
         self.preview_widget = PreviewWidget()
-        center_layout.addWidget(self.preview_widget, 1)
+        stage_layout.addWidget(self.preview_widget, 1)
 
-        # Actionable Validation / "Fix This" Banner
+        # Actionable Validation / Fix This Banner
         self._validation_banner_widget = QWidget()
         v_layout = QHBoxLayout(self._validation_banner_widget)
-        v_layout.setContentsMargins(10, 8, 10, 8)
+        v_layout.setContentsMargins(12, 8, 12, 8)
         self._validation_banner_lbl = QLabel("")
         self._validation_banner_lbl.setWordWrap(True)
         self._validation_banner_lbl.setStyleSheet("color: #fde68a; font-weight: 500; font-size: 12px;")
@@ -257,23 +147,23 @@ class LiveWorkspace(QWidget):
         v_layout.addWidget(self._fix_this_btn)
 
         self._validation_banner_widget.setStyleSheet(
-            "background-color: #451a03; border: 1px solid #78350f; border-radius: 6px;"
+            "background-color: #3b1b06; border: 1px solid #78350f; border-radius: 6px;"
         )
         self._validation_banner_widget.setVisible(False)
-        center_layout.addWidget(self._validation_banner_widget)
+        stage_layout.addWidget(self._validation_banner_widget)
 
-        # Session Summary Card
+        # Session Complete Summary Card (Dismissible)
         self._summary_card = QFrame()
-        self._summary_card.setStyleSheet("background-color: #181820; border: 1px solid #2e2e38; border-radius: 8px; padding: 12px;")
+        self._summary_card.setStyleSheet("background-color: #14141c; border: 1px solid #232330; border-radius: 8px; padding: 12px;")
         sum_layout = QVBoxLayout(self._summary_card)
         sum_layout.setSpacing(8)
 
         sum_title_row = QHBoxLayout()
-        sum_title = QLabel("Session Complete")
+        sum_title = QLabel("Take Session Complete")
         font_st = QFont(sum_title.font())
         font_st.setBold(True)
         sum_title.setFont(font_st)
-        sum_title.setStyleSheet("color: #10b981;")
+        sum_title.setStyleSheet("color: #10b981; font-size: 14px;")
         sum_title_row.addWidget(sum_title, 1)
 
         sum_close_btn = QPushButton("✕")
@@ -282,36 +172,77 @@ class LiveWorkspace(QWidget):
         sum_title_row.addWidget(sum_close_btn)
         sum_layout.addLayout(sum_title_row)
 
-        self._sum_stats_lbl = QLabel("")
-        self._sum_stats_lbl.setWordWrap(True)
-        sum_layout.addWidget(self._sum_stats_lbl)
+        self._summary_stats_lbl = QLabel("")
+        self._summary_stats_lbl.setStyleSheet("color: #d1d5db; font-size: 13px;")
+        sum_layout.addWidget(self._summary_stats_lbl)
 
-        sum_btns_row = QHBoxLayout()
-        self._btn_reveal_cpc = QPushButton("📁 Reveal .CPC Take")
-        self._btn_reveal_cpc.clicked.connect(self._reveal_cpc_take)
-        self._btn_reveal_mp4 = QPushButton("🎬 Reveal Video")
-        self._btn_reveal_mp4.clicked.connect(self._reveal_mp4_video)
-        self._btn_inspect_take = QPushButton("🔍 Open in Takes Studio")
-        self._btn_inspect_take.clicked.connect(self._open_in_takes_studio)
-        self._btn_copy_summary = QPushButton("📋 Copy Summary")
-        self._btn_copy_summary.clicked.connect(self._copy_session_summary)
+        sum_btns = QHBoxLayout()
+        self._sum_open_folder_btn = QPushButton("📁 Reveal Take in Finder")
+        self._sum_open_folder_btn.clicked.connect(self._reveal_last_take)
+        sum_btns.addWidget(self._sum_open_folder_btn)
 
-        sum_btns_row.addWidget(self._btn_reveal_cpc)
-        sum_btns_row.addWidget(self._btn_reveal_mp4)
-        sum_btns_row.addWidget(self._btn_inspect_take)
-        sum_btns_row.addWidget(self._btn_copy_summary)
-        sum_layout.addLayout(sum_btns_row)
+        self._sum_inspect_btn = QPushButton("📊 Open in Takes Studio")
+        self._sum_inspect_btn.clicked.connect(self._open_in_takes_studio)
+        sum_btns.addWidget(self._sum_inspect_btn)
+        sum_btns.addStretch(1)
+        sum_layout.addLayout(sum_btns)
 
         self._summary_card.setVisible(False)
-        center_layout.addWidget(self._summary_card)
+        stage_layout.addWidget(self._summary_card)
 
-        # Transport Bar
+        # -------------------------------------------------------------
+        # 1B. THE SESSION STRIP (Quick Status & Jump Pills)
+        # -------------------------------------------------------------
+        self._session_strip = QWidget()
+        self._session_strip.setObjectName("session_strip")
+        strip_layout = QHBoxLayout(self._session_strip)
+        strip_layout.setContentsMargins(8, 4, 8, 4)
+        strip_layout.setSpacing(8)
+
+        # Pill 1: Source
+        self._pill_source = QPushButton("📷 Source: Camera 0")
+        self._pill_source.setToolTip("Click to configure video/camera frame source")
+        self._pill_source.clicked.connect(lambda: self.open_inspector_section(0))
+        strip_layout.addWidget(self._pill_source)
+
+        # Pill 2: Character
+        self._pill_character = QPushButton("👤 Character: None (Passthrough)")
+        self._pill_character.setToolTip("Click to configure character artwork and mesh rig")
+        self._pill_character.clicked.connect(lambda: self.open_inspector_section(1))
+        strip_layout.addWidget(self._pill_character)
+
+        # Pill 3: Tracking
+        self._pill_tracker = QPushButton("🎯 Tracker: MediaPipe Face")
+        self._pill_tracker.setToolTip("Click to configure tracking model and compute delegate")
+        self._pill_tracker.clicked.connect(lambda: self.open_inspector_section(2))
+        strip_layout.addWidget(self._pill_tracker)
+
+        # Pill 4: Outputs
+        self._pill_outputs = QPushButton("📹 Output: Preview Only")
+        self._pill_outputs.setToolTip("Click to configure recording (.cpc / MP4) and virtual camera")
+        self._pill_outputs.clicked.connect(lambda: self.open_inspector_section(3))
+        strip_layout.addWidget(self._pill_outputs)
+
+        # Pill 5: Preset
+        self._pill_preset = QPushButton("⚙ Preset: Default")
+        self._pill_preset.setToolTip("Click to manage presets and countdown timing")
+        self._pill_preset.clicked.connect(lambda: self.open_inspector_section(4))
+        strip_layout.addWidget(self._pill_preset)
+
+        strip_layout.addStretch(1)
+        stage_layout.addWidget(self._session_strip)
+
+        # -------------------------------------------------------------
+        # 1C. THE TRANSPORT BAR
+        # -------------------------------------------------------------
         self._transport_bar = QWidget()
+        self._transport_bar.setObjectName("transport_bar")
         transport_layout = QHBoxLayout(self._transport_bar)
-        transport_layout.setContentsMargins(0, 0, 0, 0)
+        transport_layout.setContentsMargins(0, 4, 0, 0)
         transport_layout.setSpacing(10)
 
-        self.start_btn = QPushButton("▶  Start Session")
+        # Primary Start / Live Action
+        self.start_btn = QPushButton("▶  Start Performing")
         self.start_btn.setProperty("primary", True)
         self.start_btn.setMinimumHeight(44)
         font = QFont(self.start_btn.font())
@@ -319,16 +250,18 @@ class LiveWorkspace(QWidget):
         font.setBold(True)
         self.start_btn.setFont(font)
         self.start_btn.clicked.connect(self.start_session)
-        transport_layout.addWidget(self.start_btn, 2)
+        transport_layout.addWidget(self.start_btn, 3)
 
-        self.recenter_btn = QPushButton("🎯 Calibrate (Cmd+R)")
+        # Recenter / Neutral Pose Calibration
+        self.recenter_btn = QPushButton("🎯 Recenter Pose (Cmd+R)")
         self.recenter_btn.setToolTip("Calibrate neutral head and face position (C / Cmd+R)")
         self.recenter_btn.setMinimumHeight(44)
         self.recenter_btn.setEnabled(False)
         self.recenter_btn.clicked.connect(self.calibrate_neutral)
         transport_layout.addWidget(self.recenter_btn, 1)
 
-        self.stop_btn = QPushButton("■  Stop Session")
+        # Stop Session (visible/active while running)
+        self.stop_btn = QPushButton("■  Stop Session (Esc)")
         self.stop_btn.setProperty("danger", True)
         self.stop_btn.setMinimumHeight(44)
         self.stop_btn.setFont(font)
@@ -336,53 +269,190 @@ class LiveWorkspace(QWidget):
         self.stop_btn.clicked.connect(self.stop_session)
         transport_layout.addWidget(self.stop_btn, 2)
 
-        center_layout.addWidget(self._transport_bar)
+        stage_layout.addWidget(self._transport_bar)
 
-        # Technical Details Drawer (Collapsible)
-        self._details_drawer = QWidget()
-        dd_layout = QVBoxLayout(self._details_drawer)
-        dd_layout.setContentsMargins(0, 0, 0, 0)
-        dd_layout.setSpacing(6)
+        self._splitter.addWidget(stage_widget)
 
-        dd_header = QHBoxLayout()
-        dd_lbl = QLabel("Activity && Technical Details")
-        dd_lbl.setProperty("secondary", True)
-        dd_header.addWidget(dd_lbl, 1)
+        # -------------------------------------------------------------
+        # 2. THE CONTEXT INSPECTOR (Right Collapsible Panel)
+        # -------------------------------------------------------------
+        self._inspector_container = QWidget()
+        self._inspector_container.setObjectName("inspector_drawer")
+        self._inspector_container.setMinimumWidth(320)
+        self._inspector_container.setMaximumWidth(480)
+        insp_layout = QVBoxLayout(self._inspector_container)
+        insp_layout.setContentsMargins(8, 12, 12, 12)
+        insp_layout.setSpacing(8)
 
-        self._copy_tech_btn = QPushButton("Copy Technical Details")
-        self._copy_tech_btn.setMaximumWidth(160)
-        self._copy_tech_btn.clicked.connect(self._copy_technical_details)
-        self._copy_tech_btn.setVisible(False)
-        dd_header.addWidget(self._copy_tech_btn)
+        # Inspector Header
+        insp_head = QHBoxLayout()
+        insp_title = QLabel("Configuration & Inspector")
+        insp_title_font = QFont(insp_title.font())
+        insp_title_font.setBold(True)
+        insp_title_font.setPointSize(13)
+        insp_title.setFont(insp_title_font)
+        insp_head.addWidget(insp_title, 1)
 
-        dd_layout.addLayout(dd_header)
+        btn_close_insp = QPushButton("✕")
+        btn_close_insp.setMaximumWidth(32)
+        btn_close_insp.setToolTip("Close Inspector panel")
+        btn_close_insp.clicked.connect(lambda: self.set_inspector_visible(False))
+        insp_head.addWidget(btn_close_insp)
+        insp_layout.addLayout(insp_head)
 
-        self._tech_text = QTextEdit()
-        self._tech_text.setMaximumHeight(90)
-        self._tech_text.setReadOnly(True)
-        dd_layout.addWidget(self._tech_text)
+        # Inspector Tabs
+        self._inspector_tabs = QTabWidget()
 
-        self._details_drawer.setVisible(False)
-        center_layout.addWidget(self._details_drawer)
+        # Tab 0: Input Source
+        self.source_panel = SourcePanel()
+        self.source_panel.config_changed.connect(self._on_config_changed)
+        self._inspector_tabs.addTab(self._wrap_scroll(self.source_panel), "📷 Ingest")
 
-        self._splitter.addWidget(center_widget)
+        # Tab 1: Character & Gains
+        self.renderer_panel = RendererPanel()
+        self.renderer_panel.config_changed.connect(self._on_config_changed)
+        self.renderer_panel.open_character_workspace.connect(lambda: self.open_character_workspace.emit())
+        self._inspector_tabs.addTab(self._wrap_scroll(self.renderer_panel), "👤 Character")
 
-        # 3. Right Column: Telemetry Dashboard
-        self._right_scroll = QScrollArea()
-        self._right_scroll.setWidgetResizable(True)
-        self._right_scroll.setMinimumWidth(240)
-        self._right_scroll.setMaximumWidth(320)
+        # Tab 2: Performance Tracker
+        self.tracker_panel = TrackerPanel()
+        self.tracker_panel.config_changed.connect(self._on_config_changed)
+        self._inspector_tabs.addTab(self._wrap_scroll(self.tracker_panel), "🎯 Tracker")
+
+        # Tab 3: Outputs
+        self.outputs_panel = OutputsPanel()
+        self.outputs_panel.config_changed.connect(self._on_config_changed)
+        self._inspector_tabs.addTab(self._wrap_scroll(self.outputs_panel), "📹 Outputs")
+
+        # Tab 4: Session & Presets
+        session_box = QWidget()
+        sb_layout = QVBoxLayout(session_box)
+        sb_layout.setContentsMargins(4, 4, 4, 4)
+        sb_layout.setSpacing(10)
+
+        # Presets row inside session tab
+        preset_frame = QFrame()
+        preset_frame.setStyleSheet("background-color: #14141c; border: 1px solid #232330; border-radius: 6px; padding: 8px;")
+        pf_layout = QVBoxLayout(preset_frame)
+        pf_layout.setSpacing(6)
+        pf_layout.addWidget(QLabel("Session Presets:"))
+
+        self._preset_combo = QComboBox()
+        self._preset_combo.currentIndexChanged.connect(self._on_preset_selected)
+        pf_layout.addWidget(self._preset_combo)
+
+        p_btns = QHBoxLayout()
+        self._save_preset_btn = QPushButton("Save")
+        self._save_preset_btn.clicked.connect(self._save_current_preset)
+        p_btns.addWidget(self._save_preset_btn)
+
+        self._save_as_preset_btn = QPushButton("Save As...")
+        self._save_as_preset_btn.clicked.connect(self._save_as_new_preset)
+        p_btns.addWidget(self._save_as_preset_btn)
+
+        self._revert_preset_btn = QPushButton("Revert")
+        self._revert_preset_btn.clicked.connect(self._revert_current_preset)
+        p_btns.addWidget(self._revert_preset_btn)
+        pf_layout.addLayout(p_btns)
+        sb_layout.addWidget(preset_frame)
+
+        self.advanced_panel = AdvancedPanel()
+        self.advanced_panel.config_changed.connect(self._on_config_changed)
+        sb_layout.addWidget(self.advanced_panel)
+
+        self.cmd_preview = CommandPreviewWidget()
+        sb_layout.addWidget(self.cmd_preview)
+        sb_layout.addStretch(1)
+
+        self._inspector_tabs.addTab(self._wrap_scroll(session_box), "⚙ Session")
+
+        # Tab 5: Technical Details & Telemetry
+        telemetry_box = QWidget()
+        tb_layout = QVBoxLayout(telemetry_box)
+        tb_layout.setContentsMargins(4, 4, 4, 4)
+        tb_layout.setSpacing(8)
 
         self.telemetry_widget = TelemetryWidget()
-        self._right_scroll.setWidget(self.telemetry_widget)
-        self._splitter.addWidget(self._right_scroll)
+        tb_layout.addWidget(self.telemetry_widget)
 
-        self._splitter.setStretchFactor(0, 0)
-        self._splitter.setStretchFactor(1, 1)
-        self._splitter.setStretchFactor(2, 0)
+        tb_layout.addWidget(QLabel("Activity & Diagnostic Log:"))
+        self._tech_text = QTextEdit()
+        self._tech_text.setReadOnly(True)
+        self._tech_text.setMinimumHeight(140)
+        tb_layout.addWidget(self._tech_text, 1)
+
+        self._copy_tech_btn = QPushButton("📋 Copy Technical Details")
+        self._copy_tech_btn.clicked.connect(self._copy_technical_details)
+        tb_layout.addWidget(self._copy_tech_btn)
+
+        self._inspector_tabs.addTab(self._wrap_scroll(telemetry_box), "📊 Telemetry")
+
+        insp_layout.addWidget(self._inspector_tabs, 1)
+        self._splitter.addWidget(self._inspector_container)
+
+        self._splitter.setStretchFactor(0, 1)
+        self._splitter.setStretchFactor(1, 0)
+        self._inspector_container.setVisible(False)  # Calm default: Inspector is closed
 
         workspace_layout.addWidget(self._splitter, 1)
-        self.set_session_config(SessionConfig())
+
+    def _wrap_scroll(self, widget: QWidget) -> QScrollArea:
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setWidget(widget)
+        return scroll
+
+    # -----------------------------------------------------------------
+    # Inspector & Session Strip Management
+    # -----------------------------------------------------------------
+    def toggle_inspector(self) -> None:
+        self.set_inspector_visible(not self._inspector_container.isVisible())
+
+    def set_inspector_visible(self, visible: bool) -> None:
+        self._inspector_container.setVisible(visible)
+        if visible:
+            self._toggle_inspector_btn.setText("✕ Close Inspector")
+        else:
+            self._toggle_inspector_btn.setText("⚙ Configure / Inspector")
+
+    def open_inspector_section(self, tab_idx: int) -> None:
+        self._inspector_tabs.setCurrentIndex(tab_idx)
+        self.set_inspector_visible(True)
+
+    def _update_session_strip(self, cfg: SessionConfig) -> None:
+        # 1. Source pill
+        if cfg.source_type == "camera":
+            self._pill_source.setText(f"📷 Camera {cfg.camera_index} ●")
+        else:
+            v_name = cfg.video_path.name if cfg.video_path else "No Video"
+            self._pill_source.setText(f"🎬 Video: {v_name} ●")
+
+        # 2. Character pill
+        if cfg.character_path and cfg.character_path.is_file():
+            rig_str = "✓" if (cfg.rig_path and cfg.rig_path.is_file()) else "No Rig"
+            self._pill_character.setText(f"👤 {cfg.character_path.stem} ({rig_str})")
+        else:
+            self._pill_character.setText("👤 Character: None (Passthrough)")
+
+        # 3. Tracker pill
+        if cfg.tracker_type == "mediapipe":
+            self._pill_tracker.setText(f"🎯 MediaPipe ({cfg.tracker_delegate.upper()}) ●")
+        else:
+            self._pill_tracker.setText("🎯 Tracker: None (Baseline)")
+
+        # 4. Outputs pill
+        outs = []
+        if cfg.record_performance_path:
+            outs.append(".CPC")
+        if cfg.record_video_path:
+            outs.append("MP4")
+        if cfg.virtual_camera:
+            outs.append("VCam")
+        out_str = " + ".join(outs) if outs else "Preview Only"
+        self._pill_outputs.setText(f"📹 Output: {out_str}")
+
+        # 5. Preset pill
+        self._pill_preset.setText(f"⚙ Preset: {self._active_preset_name}")
 
     # -----------------------------------------------------------------
     # Preflight & Configuration Management
@@ -390,6 +460,7 @@ class LiveWorkspace(QWidget):
     def _on_config_changed(self) -> None:
         cfg = self.get_session_config()
         self.cmd_preview.update_command(cfg)
+        self._update_session_strip(cfg)
         self._update_preflight()
         self._update_preset_dirty_state()
 
@@ -401,13 +472,22 @@ class LiveWorkspace(QWidget):
             self.start_btn.setEnabled(False)
             self._validation_banner_lbl.setText("  •  ".join(errors))
             self._validation_banner_widget.setVisible(True)
-            self._preflight_pill.setText(f"▲ {len(errors)} Issue{'s' if len(errors) > 1 else ''}")
+            self._preflight_pill.setText(f"▲ {len(errors)} Issue{'s' if len(errors) > 1 else ''} (Needs Attention)")
             self._preflight_pill.setStyleSheet("font-weight: 600; font-size: 12px; color: #f59e0b;")
         else:
             self.start_btn.setEnabled(self._worker is None or not self._worker.isRunning())
             self._validation_banner_widget.setVisible(False)
-            self._preflight_pill.setText("● All Systems Ready")
-            self._preflight_pill.setStyleSheet("font-weight: 600; font-size: 12px; color: #10b981;")
+
+            # Truthful contextual readiness
+            if cfg.character_path and cfg.rig_path and cfg.tracker_type == "mediapipe":
+                self._preflight_pill.setText("● Ready to Perform")
+                self._preflight_pill.setStyleSheet("font-weight: 600; font-size: 12px; color: #10b981;")
+            elif cfg.tracker_type == "mediapipe":
+                self._preflight_pill.setText("● Tracking Ready (Passthrough)")
+                self._preflight_pill.setStyleSheet("font-weight: 600; font-size: 12px; color: #10b981;")
+            else:
+                self._preflight_pill.setText("● Preview Ready (No Tracking)")
+                self._preflight_pill.setStyleSheet("font-weight: 600; font-size: 12px; color: #38bdf8;")
 
     def _handle_fix_this(self) -> None:
         cfg = self.get_session_config()
@@ -415,20 +495,17 @@ class LiveWorkspace(QWidget):
         if not errors:
             return
 
-        first_err = errors[0].lower()
-        if "tracker" in first_err or "model" in first_err:
-            if not self.tracker_panel.model_selector.is_ready():
-                self.tracker_panel.model_selector.install_recommended_model()
-            else:
-                self.tracker_panel.model_selector.setFocus()
-        elif "character" in first_err or "rig" in first_err:
+        err = errors[0].lower()
+        if "video" in err or "source" in err:
+            self.open_inspector_section(0)
+        elif "character" in err or "rig" in err:
             self.open_character_workspace.emit()
-        elif "already exists" in first_err:
-            # Auto-generate fresh unique timestamped take names
-            self.outputs_panel._generate_cpc_filename()
-            self.outputs_panel._generate_mp4_filename()
-        elif "video" in first_err:
-            self.source_panel._video_edit.setFocus()
+        elif "model" in err or "tracker" in err:
+            self.open_inspector_section(2)
+        elif "output" in err or "record" in err:
+            self.open_inspector_section(3)
+        else:
+            self.open_inspector_section(0)
 
     def apply_character_setup(self, setup_dict: dict[str, Any]) -> None:
         """Apply complete setup carried over from Character Setup workspace."""
@@ -476,6 +553,7 @@ class LiveWorkspace(QWidget):
         self.outputs_panel.load_from_config(cfg)
         self.advanced_panel.load_from_config(cfg)
         self.cmd_preview.update_command(cfg)
+        self._update_session_strip(cfg)
         self._update_preflight()
 
     # -----------------------------------------------------------------
@@ -527,75 +605,23 @@ class LiveWorkspace(QWidget):
             self._log_activity(f"Saved new preset: {clean_name}")
 
     def _revert_current_preset(self) -> None:
-        name = self._active_preset_name
-        if name == "Default Configuration":
+        if self._active_preset_name == "Default Configuration":
             self.set_session_config(SessionConfig())
-            self._load_presets_menu()
-            return
-        cfg = self._settings.load_preset(name)
-        if cfg is not None:
-            self.set_session_config(cfg)
-            self._load_presets_menu()
-            idx = self._preset_combo.findText(name)
-            if idx >= 0:
-                self._preset_combo.setCurrentIndex(idx)
-            self._log_activity(f"Reverted preset: {name}")
+        else:
+            cfg = self._settings.load_preset(self._active_preset_name)
+            if cfg is not None:
+                self.set_session_config(cfg)
+        self._load_presets_menu()
+        idx = self._preset_combo.findText(self._active_preset_name)
+        if idx >= 0:
+            self._preset_combo.setCurrentIndex(idx)
+        self._log_activity(f"Reverted to preset: {self._active_preset_name}")
 
     # -----------------------------------------------------------------
-    # First-Run Quick Start Actions
+    # Session Transport Lifecycle
     # -----------------------------------------------------------------
-    def _dismiss_first_run(self) -> None:
-        self._first_run_card.setVisible(False)
-        self._settings.set_first_run_completed(True)
-
-    def _quick_start(self, kind: str) -> None:
-        self._dismiss_first_run()
-        cfg = self.get_session_config()
-        if kind == "camera":
-            cfg.source_type = "camera"
-            cfg.camera_index = 0
-        elif kind == "video":
-            cfg.source_type = "video"
-        self.set_session_config(cfg)
-
-    # -----------------------------------------------------------------
-    # Clean Preview Window & Performance Mode
-    # -----------------------------------------------------------------
-    def open_clean_preview(self) -> None:
-        if self._clean_preview_win is None:
-            self._clean_preview_win = CleanPreviewWindow()
-            self._clean_preview_win.window_closed.connect(self._on_clean_preview_closed)
-        self._clean_preview_win.show()
-        self._clean_preview_win.raise_()
-
-    def _on_clean_preview_closed(self) -> None:
-        self._clean_preview_win = None
-
-    def toggle_performance_mode(self) -> None:
-        self._performance_mode = not self._performance_mode
-        self._left_scroll.setVisible(not self._performance_mode)
-        self._right_scroll.setVisible(not self._performance_mode)
-        self.preview_widget.set_performance_mode(self._performance_mode)
-        self._perf_mode_btn.setText("⛶ Exit Performance Mode" if self._performance_mode else "⛶ Performance Mode")
-
-    # -----------------------------------------------------------------
-    # Neutral Calibration / Recenter
-    # -----------------------------------------------------------------
-    def calibrate_neutral(self) -> None:
-        """Calibrate current neutral head/expression pose."""
-        self.preview_widget.set_calibration_toast("● Neutral Pose Calibrated")
-        self._log_activity("Neutral head & expression reference pose calibrated.")
-        QTimer.singleShot(2500, lambda: self.preview_widget.set_calibration_toast(""))
-
-    # -----------------------------------------------------------------
-    # Session Execution & Lifecycle Management
-    # -----------------------------------------------------------------
-    def is_running(self) -> bool:
-        return self._worker is not None and self._worker.isRunning()
-
     def start_session(self) -> None:
-        """Start live capture, tracking, and rendering pipeline with countdown support."""
-        if self.is_running():
+        if self._worker is not None and self._worker.isRunning():
             return
 
         cfg = self.get_session_config()
@@ -604,170 +630,182 @@ class LiveWorkspace(QWidget):
             QMessageBox.warning(self, "Invalid Configuration", "\n".join(errors))
             return
 
-        countdown_sec = self._settings.get_countdown_seconds()
-        if countdown_sec > 0:
-            self._countdown_remaining = countdown_sec
-            self.start_btn.setEnabled(False)
-            self.preview_widget.set_countdown_number(self._countdown_remaining)
-            self._countdown_timer = QTimer(self)
-            self._countdown_timer.timeout.connect(self._on_countdown_tick)
-            self._countdown_timer.start(1000)
+        cd_seconds = self._settings.get_countdown_seconds()
+        if cd_seconds > 0 and self._countdown_timer is None:
+            self._start_countdown(cd_seconds)
             return
 
-        self._launch_worker(cfg)
+        self._launch_worker()
+
+    def _start_countdown(self, seconds: int) -> None:
+        self._countdown_remaining = seconds
+        self.start_btn.setText(f"⏳ Starting in {self._countdown_remaining}s... (Click to Cancel)")
+        self.start_btn.setProperty("danger", True)
+        self.start_btn.setStyle(self.start_btn.style())
+        self.start_btn.clicked.disconnect()
+        self.start_btn.clicked.connect(self._cancel_countdown)
+
+        self._countdown_timer = QTimer(self)
+        self._countdown_timer.timeout.connect(self._on_countdown_tick)
+        self._countdown_timer.start(1000)
 
     def _on_countdown_tick(self) -> None:
         self._countdown_remaining -= 1
-        if self._countdown_remaining > 0:
-            self.preview_widget.set_countdown_number(self._countdown_remaining)
+        if self._countdown_remaining <= 0:
+            self._cleanup_countdown()
+            self._launch_worker()
         else:
-            if self._countdown_timer is not None:
-                self._countdown_timer.stop()
-                self._countdown_timer = None
-            self.preview_widget.set_countdown_number(None)
-            cfg = self.get_session_config()
-            self._launch_worker(cfg)
+            self.start_btn.setText(f"⏳ Starting in {self._countdown_remaining}s... (Click to Cancel)")
 
-    def _launch_worker(self, cfg: SessionConfig) -> None:
-        self._set_ui_locked(True)
+    def _cancel_countdown(self) -> None:
+        self._cleanup_countdown()
+        self._log_activity("Session countdown cancelled by user.")
+
+    def _cleanup_countdown(self) -> None:
+        if self._countdown_timer is not None:
+            self._countdown_timer.stop()
+            self._countdown_timer = None
+        self.start_btn.setText("▶  Start Performing")
+        self.start_btn.setProperty("danger", False)
+        self.start_btn.setProperty("primary", True)
+        self.start_btn.setStyle(self.start_btn.style())
+        self.start_btn.clicked.disconnect()
+        self.start_btn.clicked.connect(self.start_session)
+
+    def _launch_worker(self) -> None:
+        cfg = self.get_session_config()
         self._summary_card.setVisible(False)
-        self._details_drawer.setVisible(False)
-        self._copy_tech_btn.setVisible(False)
-        self.preview_widget.clear_frame()
-        self.preview_widget.set_state("initializing")
-
-        # Badges
-        badges: list[tuple[str, QColor]] = []
-        if cfg.record_performance_path is not None:
-            badges.append(("● REC .CPC", QColor("#ef4444")))
-            self._last_cpc_path = cfg.record_performance_path
-        else:
-            self._last_cpc_path = None
-
-        if cfg.record_video_path is not None:
-            badges.append(("● REC MP4", QColor("#ef4444")))
-            self._last_mp4_path = cfg.record_video_path
-        else:
-            self._last_mp4_path = None
-
-        if cfg.virtual_camera:
-            badges.append(("● VCAM", QColor("#8b5cf6")))
-
-        self.preview_widget.set_badges(badges)
-        if self._clean_preview_win is not None:
-            self._clean_preview_win.set_badges(badges)
+        self._last_cpc_path = cfg.record_performance_path
+        self._last_mp4_path = cfg.record_video_path
 
         self._session_token += 1
         current_token = self._session_token
 
         self._worker = SessionWorker(cfg, session_token=current_token, parent=self)
-        self._worker.frame_ready.connect(self._on_frame_ready)
-        self._worker.telemetry_updated.connect(self.telemetry_widget.update_telemetry)
-        self._worker.state_changed.connect(self._on_state_changed)
-        self._worker.error_occurred.connect(self._on_session_error)
-        self._worker.session_finished.connect(self._on_session_finished)
+        self._worker.frame_ready.connect(lambda img, *_: self._on_frame_ready(current_token, img))
+        self._worker.telemetry_updated.connect(lambda data: self._on_telemetry_updated(current_token, data))
+        self._worker.session_finished.connect(lambda: self._on_session_finished(current_token))
+        self._worker.error_occurred.connect(lambda err, tech: self._on_error_occurred(current_token, err, tech))
 
-        self._log_activity(f"Starting performance session (Source: {cfg.source_type}, Tracker: {cfg.tracker_type}, Renderer: {cfg.renderer_type})...")
+        self._update_transport_ui(running=True)
+        self._log_activity("Launching session worker...")
         self._worker.start()
 
+    def is_running(self) -> bool:
+        return self._worker is not None and self._worker.isRunning()
+
     def stop_session(self) -> None:
-        """Signal the running session worker to stop cleanly."""
-        if self._countdown_timer is not None:
-            self._countdown_timer.stop()
-            self._countdown_timer = None
-            self.preview_widget.set_countdown_number(None)
-            self.start_btn.setEnabled(True)
-            return
-
         if self._worker is not None and self._worker.isRunning():
-            self.stop_btn.setEnabled(False)
-            self.recenter_btn.setEnabled(False)
-            self.preview_widget.set_state("stopping")
-            self._log_activity("Stopping session cleanly...")
+            self._log_activity("Stopping session worker...")
             self._worker.stop()
+            self.stop_btn.setEnabled(False)
+            self.stop_btn.setText("Stopping...")
 
-    def _on_state_changed(self, state: str) -> None:
-        self.preview_widget.set_state(state)
-        if self._clean_preview_win is not None:
-            self._clean_preview_win.set_state(state)
+    def calibrate_neutral(self) -> None:
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.calibrate_neutral()
+            self._log_activity("Neutral head pose calibrated.")
 
-    def _on_frame_ready(self, frame_bgr: Any, performance: Any, metrics: Any) -> None:
-        self.preview_widget.update_frame(frame_bgr)
-        self.preview_widget.set_metrics(metrics.fps, metrics.processing_ms)
-        if self._clean_preview_win is not None:
-            self._clean_preview_win.update_frame(frame_bgr)
-            self._clean_preview_win.set_metrics(metrics.fps, metrics.processing_ms)
+    def open_clean_preview(self) -> None:
+        if self._clean_preview_win is None:
+            self._clean_preview_win = CleanPreviewWindow()
+            self._clean_preview_win.window_closed.connect(self._on_clean_preview_closed)
+        self._clean_preview_win.show()
+        self._clean_preview_win.raise_()
+        self._clean_preview_win.activateWindow()
 
-    def _on_session_error(self, user_msg: str, tech_details: str) -> None:
-        self.preview_widget.set_state("error")
-        if self._clean_preview_win is not None:
-            self._clean_preview_win.set_state("error")
-        self._last_error_details = tech_details
-        self._log_activity(f"ERROR: {user_msg}\n{tech_details}")
-        self._details_drawer.setVisible(True)
-        self._copy_tech_btn.setVisible(True)
-        QMessageBox.critical(self, "Session Error", f"{user_msg}\n\nCheck the technical details drawer below for troubleshooting.")
+    def _on_clean_preview_closed(self) -> None:
+        self._clean_preview_win = None
 
-    def _on_session_finished(self) -> None:
-        self._set_ui_locked(False)
+    def toggle_performance_mode(self) -> None:
+        self._performance_mode = not self._performance_mode
+        self._perf_mode_btn.setText("Exit Performance" if self._performance_mode else "⛶ Fullscreen Stage")
+        self._session_strip.setVisible(not self._performance_mode)
+        if self._performance_mode:
+            self.set_inspector_visible(False)
+
+    # -----------------------------------------------------------------
+    # Session Worker Callbacks
+    # -----------------------------------------------------------------
+    def _on_session_started(self, token: int) -> None:
+        if token != self._session_token:
+            return
+        self._log_activity("Session active and capturing frames.")
+
+    def _on_frame_ready(self, token: int, img: Any) -> None:
+        if token != self._session_token:
+            return
+        self.preview_widget.update_frame(img)
+        if self._clean_preview_win is not None and self._clean_preview_win.isVisible():
+            self._clean_preview_win.update_frame(img)
+
+    def _on_telemetry_updated(self, token: int, data: dict[str, Any]) -> None:
+        if token != self._session_token:
+            return
+        self.telemetry_widget.update_telemetry(data)
+        self.preview_widget.update_telemetry(data)
+        if self._clean_preview_win is not None and self._clean_preview_win.isVisible():
+            self._clean_preview_win.update_telemetry(data)
+
+    def _on_session_finished(self, token: int) -> None:
+        if token != self._session_token:
+            return
         self._worker = None
-        self._log_activity("Session stopped.")
+        self._update_transport_ui(running=False)
+        self._log_activity("Session finished.")
 
-        # Display summary card if outputs were created
-        if self._last_cpc_path is not None or self._last_mp4_path is not None:
-            stats_text = "Generated Session Outputs:\n"
-            if self._last_cpc_path:
-                stats_text += f" • .CPC Take: {self._last_cpc_path.name}\n"
-                self._btn_reveal_cpc.setVisible(True)
-                self._btn_inspect_take.setVisible(True)
-            else:
-                self._btn_reveal_cpc.setVisible(False)
-                self._btn_inspect_take.setVisible(False)
+        cpc_text = f"• .CPC Take: {self._last_cpc_path.name}\n" if self._last_cpc_path else ""
+        mp4_text = f"• MP4 Video: {self._last_mp4_path.name}\n" if self._last_mp4_path else ""
 
-            if self._last_mp4_path:
-                stats_text += f" • Rendered Video: {self._last_mp4_path.name}\n"
-                self._btn_reveal_mp4.setVisible(True)
-            else:
-                self._btn_reveal_mp4.setVisible(False)
+        self._summary_stats_lbl.setText(
+            f"Take Completed Successfully.\n{cpc_text}{mp4_text}"
+        )
+        self._summary_card.setVisible(True)
 
-            self._sum_stats_lbl.setText(stats_text.strip())
-            self._summary_card.setVisible(True)
+    def _on_error_occurred(self, token: int, error_msg: str, tech_details: str) -> None:
+        if token != self._session_token:
+            return
+        self._last_error_details = tech_details
+        self._log_activity(f"ERROR: {error_msg}")
+        QMessageBox.critical(
+            self,
+            "Capture Session Error",
+            f"{error_msg}\n\nTechnical details:\n{tech_details}",
+        )
 
-    def _reveal_cpc_take(self) -> None:
-        if self._last_cpc_path and self._last_cpc_path.exists():
-            QDesktopServices.openUrl(f"file://{self._last_cpc_path.parent.resolve()}")
+    def _update_transport_ui(self, running: bool) -> None:
+        self.start_btn.setEnabled(not running)
+        self.stop_btn.setEnabled(running)
+        self.stop_btn.setText("■  Stop Session (Esc)")
+        self.recenter_btn.setEnabled(running)
+        self.source_panel.setEnabled(not running)
+        self.tracker_panel.setEnabled(not running)
+        self.renderer_panel.setEnabled(not running)
+        self.outputs_panel.setEnabled(not running)
 
-    def _reveal_mp4_video(self) -> None:
-        if self._last_mp4_path and self._last_mp4_path.exists():
-            QDesktopServices.openUrl(f"file://{self._last_mp4_path.parent.resolve()}")
+        if running:
+            self.start_btn.setText("● Live Capturing")
+            self._preflight_pill.setText("● LIVE")
+            self._preflight_pill.setStyleSheet("font-weight: 700; font-size: 12px; color: #ef4444;")
+        else:
+            self.start_btn.setText("▶  Start Performing")
+            self._update_preflight()
+
+    def _reveal_last_take(self) -> None:
+        target = self._last_cpc_path or self._last_mp4_path
+        if target and target.parent.is_dir():
+            QDesktopServices.openUrl(f"file://{target.parent.resolve()}")
 
     def _open_in_takes_studio(self) -> None:
-        if self._last_cpc_path and self._last_cpc_path.exists():
+        if self._last_cpc_path and self._last_cpc_path.is_file():
             self.open_takes_workspace.emit(self._last_cpc_path)
 
-    def _copy_session_summary(self) -> None:
-        if self._sum_stats_lbl.text():
-            QApplication.clipboard().setText(self._sum_stats_lbl.text())
-            QMessageBox.information(self, "Copied", "Session output summary copied to clipboard.")
+    def _log_activity(self, msg: str) -> None:
+        self._tech_text.append(f"[{Path('.').stat().st_mtime:.0f}] {msg}")
 
     def _copy_technical_details(self) -> None:
+        text = self._tech_text.toPlainText()
         if self._last_error_details:
-            QApplication.clipboard().setText(self._last_error_details)
-            QMessageBox.information(self, "Copied", "Technical details copied to clipboard.")
-
-    def _log_activity(self, message: str) -> None:
-        self._tech_text.append(message)
-
-    def _set_ui_locked(self, locked: bool) -> None:
-        self.start_btn.setEnabled(not locked)
-        self.recenter_btn.setEnabled(locked)
-        self.stop_btn.setEnabled(locked)
-        self.source_panel.setEnabled(not locked)
-        self.tracker_panel.setEnabled(not locked)
-        self.renderer_panel.setEnabled(not locked)
-        self.outputs_panel.setEnabled(not locked)
-        self.advanced_panel.setEnabled(not locked)
-        self._preset_combo.setEnabled(not locked)
-        self._save_preset_btn.setEnabled(not locked)
-        self._save_as_preset_btn.setEnabled(not locked)
-        self._revert_preset_btn.setEnabled(not locked)
+            text += f"\n\n--- Last Error Details ---\n{self._last_error_details}"
+        QApplication.clipboard().setText(text)
+        QMessageBox.information(self, "Copied", "Technical activity details copied to clipboard.")

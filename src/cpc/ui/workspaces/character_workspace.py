@@ -6,7 +6,6 @@ import cv2
 import numpy as np
 from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import (
-    QDesktopServices,
     QDragEnterEvent,
     QDropEvent,
     QFont,
@@ -18,8 +17,6 @@ from PySide6.QtWidgets import (
     QComboBox,
     QFileDialog,
     QFrame,
-    QGridLayout,
-    QGroupBox,
     QHBoxLayout,
     QLabel,
     QLineEdit,
@@ -29,7 +26,6 @@ from PySide6.QtWidgets import (
     QScrollArea,
     QSplitter,
     QStackedWidget,
-    QTextEdit,
     QVBoxLayout,
     QWidget,
 )
@@ -42,7 +38,7 @@ from cpc.ui.worker import DeriveRigWorker
 
 
 class CharacterWorkspace(QWidget):
-    """Guided 6-stage Character Setup Journey & Rig Visualizer."""
+    """Calm, Guided 6-stage Character Setup Journey & Rig Visualizer."""
 
     character_selected = Signal(Path, Path)  # (character_image_path, rig_sidecar_path)
     start_performing_requested = Signal(dict)  # Complete setup dictionary to transfer to Live Studio
@@ -76,7 +72,7 @@ class CharacterWorkspace(QWidget):
 
     def _init_ui(self) -> None:
         main_layout = QVBoxLayout(self)
-        main_layout.setContentsMargins(12, 10, 12, 12)
+        main_layout.setContentsMargins(14, 10, 14, 14)
         main_layout.setSpacing(10)
 
         # -------------------------------------------------------------
@@ -84,10 +80,10 @@ class CharacterWorkspace(QWidget):
         # -------------------------------------------------------------
         self._rail_frame = QFrame()
         self._rail_frame.setStyleSheet(
-            "QFrame { background-color: #121218; border: 1px solid #22222e; border-radius: 8px; padding: 6px; }"
+            "QFrame { background-color: #121218; border: 1px solid #1f1f2a; border-radius: 8px; padding: 4px; }"
         )
         rail_layout = QHBoxLayout(self._rail_frame)
-        rail_layout.setContentsMargins(8, 4, 8, 4)
+        rail_layout.setContentsMargins(6, 4, 6, 4)
         rail_layout.setSpacing(6)
 
         self._step_names = [
@@ -105,18 +101,13 @@ class CharacterWorkspace(QWidget):
             btn.setAutoDefault(False)
             btn.setStyleSheet(
                 "QPushButton { background-color: transparent; border: 1px solid transparent; "
-                "border-radius: 6px; padding: 6px 14px; font-weight: 600; font-size: 12px; color: #71717a; } "
-                "QPushButton:checked { background-color: #1e3a8a; border: 1px solid #3b82f6; color: #ffffff; } "
-                "QPushButton:hover:!checked { background-color: #181824; color: #d4d4d8; }"
+                "border-radius: 6px; padding: 6px 14px; font-weight: 500; font-size: 12px; color: #9ca3af; } "
+                "QPushButton:checked { background-color: #1e3a8a; border: 1px solid #3b82f6; color: #ffffff; font-weight: 600; } "
+                "QPushButton:hover:!checked { background-color: #171722; color: #d1d1d6; }"
             )
             btn.clicked.connect(lambda _, idx=i: self._jump_to_step(idx))
             rail_layout.addWidget(btn)
             self._step_buttons.append(btn)
-
-            if i < len(self._step_names) - 1:
-                arrow = QLabel("→")
-                arrow.setStyleSheet("color: #3f3f46; font-size: 12px;")
-                rail_layout.addWidget(arrow)
 
         rail_layout.addStretch(1)
         main_layout.addWidget(self._rail_frame)
@@ -130,27 +121,21 @@ class CharacterWorkspace(QWidget):
         # 1. Left Side: Stacked Steps Content
         self._left_scroll = QScrollArea()
         self._left_scroll.setWidgetResizable(True)
-        self._left_scroll.setMinimumWidth(360)
+        self._left_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._left_scroll.setMinimumWidth(380)
         self._left_scroll.setMaximumWidth(500)
 
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
-        left_layout.setContentsMargins(8, 8, 8, 8)
+        left_layout.setContentsMargins(6, 6, 6, 6)
         left_layout.setSpacing(10)
 
         self._stack = QStackedWidget()
-
-        # Step 1: Character Selection Page
         self._stack.addWidget(self._create_step1_character())
-        # Step 2: Tracking Model Selection Page
         self._stack.addWidget(self._create_step2_tracking())
-        # Step 3: Build Rig Page
         self._stack.addWidget(self._create_step3_build_rig())
-        # Step 4: Verify Page
         self._stack.addWidget(self._create_step4_verify())
-        # Step 5: Calibrate Page
         self._stack.addWidget(self._create_step5_calibrate())
-        # Step 6: Ready Page
         self._stack.addWidget(self._create_step6_ready())
 
         left_layout.addWidget(self._stack)
@@ -164,8 +149,10 @@ class CharacterWorkspace(QWidget):
         right_layout.setContentsMargins(8, 8, 8, 8)
         right_layout.setSpacing(8)
 
-        # Visualizer Toolbar
-        viz_toolbar = QHBoxLayout()
+        # Visualizer Toolbar (hidden on steps 1-3 until a rig exists to verify)
+        self._viz_toolbar_widget = QWidget()
+        viz_toolbar = QHBoxLayout(self._viz_toolbar_widget)
+        viz_toolbar.setContentsMargins(0, 0, 0, 0)
         viz_toolbar.setSpacing(12)
 
         self._check_show_points = QCheckBox("Landmark Points")
@@ -184,13 +171,14 @@ class CharacterWorkspace(QWidget):
         viz_toolbar.addWidget(self._check_show_hull)
 
         viz_toolbar.addStretch(1)
-        right_layout.addLayout(viz_toolbar)
+        self._viz_toolbar_widget.setVisible(False)
+        right_layout.addWidget(self._viz_toolbar_widget)
 
         # Visual Canvas
         self._canvas_lbl = QLabel("No character loaded\n\nDrag & drop artwork PNG/JPG or click Choose Character")
         self._canvas_lbl.setAlignment(Qt.AlignCenter)
         self._canvas_lbl.setStyleSheet(
-            "QLabel { background-color: #0c0c10; border: 1px dashed #272733; border-radius: 8px; color: #71717a; font-size: 14px; }"
+            "QLabel { background-color: #0c0c10; border: 1px dashed #242432; border-radius: 8px; color: #71717a; font-size: 14px; }"
         )
         right_layout.addWidget(self._canvas_lbl, 1)
 
@@ -207,19 +195,41 @@ class CharacterWorkspace(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
 
         title = QLabel("Step 1: Choose Your Character")
         font_t = QFont(title.font())
-        font_t.setPointSize(14)
+        font_t.setPointSize(15)
         font_t.setBold(True)
         title.setFont(font_t)
         layout.addWidget(title)
 
         desc = QLabel("Select or drop the 2D character reference image you want to perform with.")
-        desc.setStyleSheet("color: #a1a1aa; font-size: 12px;")
+        desc.setStyleSheet("color: #9ca3af; font-size: 13px;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
+
+        # Drop Target / Primary Action Button
+        self._drop_card = QFrame()
+        self._drop_card.setStyleSheet(
+            "QFrame { background-color: #14141d; border: 2px dashed #2b2b3d; border-radius: 8px; padding: 16px; }"
+            "QFrame:hover { border-color: #3b82f6; background-color: #171722; }"
+        )
+        drop_layout = QVBoxLayout(self._drop_card)
+        drop_layout.setSpacing(8)
+
+        drop_prompt = QLabel("Drag & drop character image here (PNG, JPG, WebP)")
+        drop_prompt.setAlignment(Qt.AlignCenter)
+        drop_prompt.setStyleSheet("color: #d1d5db; font-size: 13px; font-weight: 500;")
+        drop_layout.addWidget(drop_prompt)
+
+        btn_browse_main = QPushButton("📁  Choose Character Artwork...")
+        btn_browse_main.setProperty("primary", True)
+        btn_browse_main.setMinimumHeight(38)
+        btn_browse_main.clicked.connect(self._browse_character)
+        drop_layout.addWidget(btn_browse_main)
+
+        layout.addWidget(self._drop_card)
 
         # Recents row
         rec_row = QHBoxLayout()
@@ -235,47 +245,43 @@ class CharacterWorkspace(QWidget):
         rec_row.addWidget(self._fav_btn)
         layout.addLayout(rec_row)
 
-        # File Picker
-        pick_box = QGroupBox("Character Image File")
-        pb_layout = QVBoxLayout(pick_box)
-        pb_layout.setContentsMargins(10, 14, 10, 10)
-        pb_layout.setSpacing(8)
+        # Selected Character Summary Card (visible when loaded)
+        self._char_summary_card = QFrame()
+        self._char_summary_card.setStyleSheet(
+            "background-color: #14141c; border: 1px solid #232330; border-radius: 6px; padding: 10px;"
+        )
+        csum_layout = QVBoxLayout(self._char_summary_card)
+        csum_layout.setSpacing(4)
 
-        file_row = QHBoxLayout()
         self._char_edit = QLineEdit()
-        self._char_edit.setPlaceholderText("Select or drop character PNG/JPG/WebP...")
+        self._char_edit.setVisible(False)
         self._char_edit.textChanged.connect(self._on_character_path_changed)
-        file_row.addWidget(self._char_edit, 1)
+        csum_layout.addWidget(self._char_edit)
 
-        btn_browse = QPushButton("Browse...")
-        btn_browse.clicked.connect(self._browse_character)
-        file_row.addWidget(btn_browse)
-
-        self._reveal_char_btn = QPushButton("📁")
-        self._reveal_char_btn.setMaximumWidth(32)
-        self._reveal_char_btn.setToolTip("Reveal in Finder")
-        self._reveal_char_btn.clicked.connect(self._reveal_character)
-        file_row.addWidget(self._reveal_char_btn)
-        pb_layout.addLayout(file_row)
+        self._char_filename_lbl = QLabel("No character selected")
+        self._char_filename_lbl.setStyleSheet("font-weight: 600; font-size: 13px; color: #ffffff;")
+        csum_layout.addWidget(self._char_filename_lbl)
 
         self._char_info_lbl = QLabel("Dimensions: --")
-        self._char_info_lbl.setStyleSheet("color: #71717a; font-size: 11px;")
-        pb_layout.addWidget(self._char_info_lbl)
+        self._char_info_lbl.setStyleSheet("color: #9ca3af; font-size: 12px;")
+        csum_layout.addWidget(self._char_info_lbl)
 
-        layout.addWidget(pick_box)
-
-        # Existing rig detection note
-        self._existing_rig_banner = QLabel("✓ Known rig sidecar found for this character.")
+        self._existing_rig_banner = QLabel("✓ Rig sidecar found for this character")
         self._existing_rig_banner.setStyleSheet(
-            "background-color: #064e3b; color: #6ee7b7; padding: 8px; border-radius: 6px; font-weight: 500; font-size: 12px;"
+            "color: #10b981; font-weight: 500; font-size: 12px;"
         )
         self._existing_rig_banner.setVisible(False)
-        layout.addWidget(self._existing_rig_banner)
+        csum_layout.addWidget(self._existing_rig_banner)
+
+        self._char_summary_card.setVisible(False)
+        layout.addWidget(self._char_summary_card)
+
+        layout.addStretch(1)
 
         # Primary CTA
         self._btn_step1_next = QPushButton("Continue to Tracking →")
         self._btn_step1_next.setProperty("primary", True)
-        self._btn_step1_next.setMinimumHeight(40)
+        self._btn_step1_next.setMinimumHeight(42)
         font_btn = QFont(self._btn_step1_next.font())
         font_btn.setBold(True)
         self._btn_step1_next.setFont(font_btn)
@@ -292,35 +298,41 @@ class CharacterWorkspace(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
 
         title = QLabel("Step 2: Tracking Model")
         font_t = QFont(title.font())
-        font_t.setPointSize(14)
+        font_t.setPointSize(15)
         font_t.setBold(True)
         title.setFont(font_t)
         layout.addWidget(title)
 
-        desc = QLabel("CPC uses the curated MediaPipe Face Landmarker model to track your facial expressions and head motion.")
-        desc.setStyleSheet("color: #a1a1aa; font-size: 12px;")
+        desc = QLabel("Select the facial landmark tracker. The official MediaPipe Face Landmarker runs locally on your CPU.")
+        desc.setStyleSheet("color: #9ca3af; font-size: 13px;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        # Curated Model Selector
         self.model_selector = ModelSelectorWidget(self)
-        self.model_selector.model_selection_changed.connect(self._on_model_changed)
+        self.model_selector.model_selection_changed.connect(self._on_model_selection_changed)
         layout.addWidget(self.model_selector)
 
-        # Primary CTA
+        layout.addStretch(1)
+
+        nav_row = QHBoxLayout()
+        btn_back = QPushButton("← Back")
+        btn_back.setMinimumHeight(40)
+        btn_back.clicked.connect(lambda: self._set_step(0))
+        nav_row.addWidget(btn_back)
+
         self._btn_step2_next = QPushButton("Continue to Build Rig →")
         self._btn_step2_next.setProperty("primary", True)
         self._btn_step2_next.setMinimumHeight(40)
         font_btn = QFont(self._btn_step2_next.font())
         font_btn.setBold(True)
         self._btn_step2_next.setFont(font_btn)
-        self._btn_step2_next.setEnabled(self.model_selector.is_ready())
         self._btn_step2_next.clicked.connect(lambda: self._set_step(2))
-        layout.addWidget(self._btn_step2_next)
+        nav_row.addWidget(self._btn_step2_next, 1)
+        layout.addLayout(nav_row)
 
         return page
 
@@ -331,130 +343,127 @@ class CharacterWorkspace(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
 
         title = QLabel("Step 3: Build Character Rig")
         font_t = QFont(title.font())
-        font_t.setPointSize(14)
+        font_t.setPointSize(15)
         font_t.setBold(True)
         title.setFont(font_t)
         layout.addWidget(title)
 
         desc = QLabel(
-            "CPC will detect facial landmarks on your character artwork and build a deterministic 2D mesh topology."
+            "CPC will analyze your character artwork, detect facial geometry, and generate the 2D deformation mesh rig."
         )
-        desc.setStyleSheet("color: #a1a1aa; font-size: 12px;")
+        desc.setStyleSheet("color: #9ca3af; font-size: 13px;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        # Rig Configuration Box
-        rig_box = QGroupBox("Rig Derivation Parameters")
-        rb_layout = QGridLayout(rig_box)
-        rb_layout.setContentsMargins(10, 14, 10, 10)
-        rb_layout.setSpacing(6)
+        # Action Card
+        rig_card = QFrame()
+        rig_card.setStyleSheet("background-color: #14141c; border: 1px solid #232330; border-radius: 8px; padding: 14px;")
+        rc_layout = QVBoxLayout(rig_card)
+        rc_layout.setSpacing(10)
 
-        rb_layout.addWidget(QLabel("Character:"), 0, 0)
-        self._lbl_rig_char_name = QLabel("--")
-        self._lbl_rig_char_name.setStyleSheet("font-weight: 600; color: #e4e4e7;")
-        rb_layout.addWidget(self._lbl_rig_char_name, 0, 1)
+        self._rig_status_msg = QLabel("Ready to build character rig.")
+        self._rig_status_msg.setStyleSheet("color: #d1d5db; font-size: 13px;")
+        rc_layout.addWidget(self._rig_status_msg)
 
-        rb_layout.addWidget(QLabel("Tracker Model:"), 1, 0)
-        self._lbl_rig_model_name = QLabel("MediaPipe Face Landmarker")
-        self._lbl_rig_model_name.setStyleSheet("font-weight: 600; color: #e4e4e7;")
-        rb_layout.addWidget(self._lbl_rig_model_name, 1, 1)
+        self._btn_build_rig = QPushButton("⚡  Build Character Rig")
+        self._btn_build_rig.setProperty("primary", True)
+        self._btn_build_rig.setMinimumHeight(44)
+        font_bb = QFont(self._btn_build_rig.font())
+        font_bb.setBold(True)
+        font_bb.setPointSize(13)
+        self._btn_build_rig.setFont(font_bb)
+        self._btn_build_rig.clicked.connect(self._build_rig_action)
+        rc_layout.addWidget(self._btn_build_rig)
 
-        rb_layout.addWidget(QLabel("Rig Sidecar:"), 2, 0)
-        self._lbl_rig_dest_path = QLabel("--")
-        self._lbl_rig_dest_path.setStyleSheet("color: #38bdf8; font-size: 11px;")
-        self._lbl_rig_dest_path.setWordWrap(True)
-        rb_layout.addWidget(self._lbl_rig_dest_path, 2, 1)
+        self._derive_prog = QProgressBar()
+        self._derive_prog.setRange(0, 0)  # indeterminate
+        self._derive_prog.setVisible(False)
+        rc_layout.addWidget(self._derive_prog)
 
-        layout.addWidget(rig_box)
+        layout.addWidget(rig_card)
+        layout.addStretch(1)
 
-        # Build Rig Action Button
-        self._derive_btn = QPushButton("⚡  Build Character Rig")
-        self._derive_btn.setProperty("primary", True)
-        self._derive_btn.setMinimumHeight(44)
-        font_btn = QFont(self._derive_btn.font())
-        font_btn.setPointSize(13)
+        nav_row = QHBoxLayout()
+        btn_back = QPushButton("← Back")
+        btn_back.setMinimumHeight(40)
+        btn_back.clicked.connect(lambda: self._set_step(1))
+        nav_row.addWidget(btn_back)
+
+        self._btn_step3_next = QPushButton("Continue to Verify →")
+        self._btn_step3_next.setProperty("primary", True)
+        self._btn_step3_next.setMinimumHeight(40)
+        font_btn = QFont(self._btn_step3_next.font())
         font_btn.setBold(True)
-        self._derive_btn.setFont(font_btn)
-        self._derive_btn.clicked.connect(self.derive_rig)
-        layout.addWidget(self._derive_btn)
-
-        # Progress bar
-        self._derive_progress = QProgressBar()
-        self._derive_progress.setRange(0, 0)
-        self._derive_progress.setVisible(False)
-        layout.addWidget(self._derive_progress)
-
-        self._derive_status_lbl = QLabel("")
-        self._derive_status_lbl.setStyleSheet("color: #60a5fa; font-size: 12px;")
-        layout.addWidget(self._derive_status_lbl)
-
-        # Technical Log Drawer
-        self._log_text = QTextEdit()
-        self._log_text.setMaximumHeight(80)
-        self._log_text.setReadOnly(True)
-        self._log_text.setPlaceholderText("Rig derivation log...")
-        layout.addWidget(self._log_text)
+        self._btn_step3_next.setFont(font_btn)
+        self._btn_step3_next.setEnabled(False)
+        self._btn_step3_next.clicked.connect(lambda: self._set_step(3))
+        nav_row.addWidget(self._btn_step3_next, 1)
+        layout.addLayout(nav_row)
 
         return page
 
     # -------------------------------------------------------------
-    # Step 4: Verify Rig Page
+    # Step 4: Verify Mesh Page
     # -------------------------------------------------------------
     def _create_step4_verify(self) -> QWidget:
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
 
-        title = QLabel("Step 4: Verify Character Rig")
+        title = QLabel("Step 4: Verify Mesh Alignment")
         font_t = QFont(title.font())
-        font_t.setPointSize(14)
+        font_t.setPointSize(15)
         font_t.setBold(True)
         title.setFont(font_t)
         layout.addWidget(title)
 
-        desc = QLabel("Inspect the mesh topology and landmark points overlaid on your character artwork.")
-        desc.setStyleSheet("color: #a1a1aa; font-size: 12px;")
+        desc = QLabel("Inspect the facial landmarks and deformation mesh overlaid on your character in the preview canvas.")
+        desc.setStyleSheet("color: #9ca3af; font-size: 13px;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        # Verification Checklist Card
-        chk_box = QGroupBox("Rig Verification Status")
-        cb_layout = QVBoxLayout(chk_box)
-        cb_layout.setContentsMargins(10, 14, 10, 10)
-        cb_layout.setSpacing(6)
+        # Verification Card
+        v_card = QFrame()
+        v_card.setStyleSheet("background-color: #14141c; border: 1px solid #232330; border-radius: 8px; padding: 14px;")
+        vc_layout = QVBoxLayout(v_card)
+        vc_layout.setSpacing(10)
 
-        self._chk_pts = QLabel("✓ Landmark Topology (478 points)")
-        self._chk_pts.setStyleSheet("color: #10b981; font-weight: 600;")
-        cb_layout.addWidget(self._chk_pts)
+        q_lbl = QLabel("Does the mesh align with your character's eyes, nose, and mouth?")
+        q_lbl.setStyleSheet("color: #ffffff; font-weight: 600; font-size: 13px;")
+        q_lbl.setWordWrap(True)
+        vc_layout.addWidget(q_lbl)
 
-        self._chk_mesh = QLabel("✓ Delaunay Triangulation Mesh Built")
-        self._chk_mesh.setStyleSheet("color: #10b981; font-weight: 600;")
-        cb_layout.addWidget(self._chk_mesh)
+        self._rig_details_lbl = QLabel("Rig Points: -- | Triangles: --")
+        self._rig_details_lbl.setStyleSheet("color: #9ca3af; font-size: 12px;")
+        vc_layout.addWidget(self._rig_details_lbl)
 
-        self._chk_sidecar = QLabel("✓ Rig Sidecar Saved to Disk")
-        self._chk_sidecar.setStyleSheet("color: #10b981; font-weight: 600;")
-        cb_layout.addWidget(self._chk_sidecar)
+        btn_rederive = QPushButton("↻ Re-derive Rig")
+        btn_rederive.clicked.connect(self._build_rig_action)
+        vc_layout.addWidget(btn_rederive)
 
-        layout.addWidget(chk_box)
+        layout.addWidget(v_card)
+        layout.addStretch(1)
 
-        # Actions
-        self._btn_step4_next = QPushButton("Looks Good (Continue to Calibration) →")
+        nav_row = QHBoxLayout()
+        btn_back = QPushButton("← Back")
+        btn_back.setMinimumHeight(40)
+        btn_back.clicked.connect(lambda: self._set_step(2))
+        nav_row.addWidget(btn_back)
+
+        self._btn_step4_next = QPushButton("Looks Great → Continue to Calibrate")
         self._btn_step4_next.setProperty("primary", True)
         self._btn_step4_next.setMinimumHeight(40)
         font_btn = QFont(self._btn_step4_next.font())
         font_btn.setBold(True)
         self._btn_step4_next.setFont(font_btn)
-        self._btn_step4_next.clicked.connect(lambda: self._set_step(4))
-        layout.addWidget(self._btn_step4_next)
-
-        btn_rebuild = QPushButton("↺ Rebuild Rig")
-        btn_rebuild.clicked.connect(lambda: self._set_step(2))
-        layout.addWidget(btn_rebuild)
+        self._btn_step4_next.clicked.connect(self._on_step4_next_clicked)
+        nav_row.addWidget(self._btn_step4_next, 1)
+        layout.addLayout(nav_row)
 
         return page
 
@@ -465,70 +474,65 @@ class CharacterWorkspace(QWidget):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(10)
+        layout.setSpacing(12)
 
         title = QLabel("Step 5: Calibrate Neutral Rest Pose")
         font_t = QFont(title.font())
-        font_t.setPointSize(14)
+        font_t.setPointSize(15)
         font_t.setBold(True)
         title.setFont(font_t)
         layout.addWidget(title)
 
         desc = QLabel(
-            "Sit naturally, look directly at your camera, and relax your facial expression. "
-            "CPC will calibrate your neutral resting posture so head and facial movements are captured accurately."
+            "Look straight at the camera in a relaxed, neutral expression. Capturing a neutral rest pose ensures accurate head rotation and expression mapping."
         )
-        desc.setStyleSheet("color: #a1a1aa; font-size: 12px; line-height: 1.4;")
+        desc.setStyleSheet("color: #9ca3af; font-size: 13px;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        # Calibration Button
-        self._btn_calibrate_now = QPushButton("🎯  Calibrate Neutral Pose (3s Countdown)")
+        # Calibration Action Card
+        calib_card = QFrame()
+        calib_card.setStyleSheet("background-color: #14141c; border: 1px solid #232330; border-radius: 8px; padding: 14px;")
+        cc_layout = QVBoxLayout(calib_card)
+        cc_layout.setSpacing(10)
+
+        self._btn_calibrate_now = QPushButton("🎯  Capture Neutral Pose (3s Countdown)")
         self._btn_calibrate_now.setProperty("primary", True)
         self._btn_calibrate_now.setMinimumHeight(44)
-        font_btn = QFont(self._btn_calibrate_now.font())
-        font_btn.setPointSize(13)
-        font_btn.setBold(True)
-        self._btn_calibrate_now.setFont(font_btn)
+        font_c = QFont(self._btn_calibrate_now.font())
+        font_c.setBold(True)
+        self._btn_calibrate_now.setFont(font_c)
         self._btn_calibrate_now.clicked.connect(self._start_calibration_countdown)
-        layout.addWidget(self._btn_calibrate_now)
+        cc_layout.addWidget(self._btn_calibrate_now)
 
-        # Calibration Status Banner
-        self._calib_status_banner = QLabel("● Neutral Pose Calibrated ✓")
-        self._calib_status_banner.setStyleSheet(
-            "background-color: #064e3b; color: #6ee7b7; padding: 10px; border-radius: 6px; font-weight: 700; font-size: 13px; text-align: center;"
-        )
-        self._calib_status_banner.setAlignment(Qt.AlignCenter)
+        self._calib_status_banner = QLabel("✓ Neutral pose calibrated.")
+        self._calib_status_banner.setStyleSheet("color: #10b981; font-weight: 600; font-size: 12px;")
         self._calib_status_banner.setVisible(False)
-        layout.addWidget(self._calib_status_banner)
+        cc_layout.addWidget(self._calib_status_banner)
 
-        # Proof of Life Prompt
-        prompt_box = QGroupBox("Motion Responsiveness Check")
-        pr_layout = QVBoxLayout(prompt_box)
-        pr_layout.setContentsMargins(10, 12, 10, 10)
-        pr_desc = QLabel(
-            "Try moving in front of your camera:\n"
-            " • Blink your eyes\n"
-            " • Smile or open your mouth\n"
-            " • Turn your head gently left and right\n\n"
-            "Your character is now calibrated and responsive."
-        )
-        pr_desc.setStyleSheet("color: #cbd5e1; font-size: 12px; line-height: 1.4;")
-        pr_layout.addWidget(pr_desc)
-        layout.addWidget(prompt_box)
+        layout.addWidget(calib_card)
+        layout.addStretch(1)
 
-        # Continue to Ready
+        nav_row = QHBoxLayout()
+        btn_back = QPushButton("← Back")
+        btn_back.setMinimumHeight(40)
+        btn_back.clicked.connect(lambda: self._set_step(3))
+        nav_row.addWidget(btn_back)
+
         self._btn_step5_next = QPushButton("Continue to Ready →")
         self._btn_step5_next.setProperty("primary", True)
         self._btn_step5_next.setMinimumHeight(40)
+        font_btn = QFont(self._btn_step5_next.font())
+        font_btn.setBold(True)
         self._btn_step5_next.setFont(font_btn)
         self._btn_step5_next.clicked.connect(lambda: self._set_step(5))
-        layout.addWidget(self._btn_step5_next)
+        nav_row.addWidget(self._btn_step5_next, 1)
+        layout.addLayout(nav_row)
 
         return page
 
     # -------------------------------------------------------------
-    # Step 6: Ready Page
+    # Step 6: Ready to Perform Page
     # -------------------------------------------------------------
     def _create_step6_ready(self) -> QWidget:
         page = QWidget()
@@ -536,95 +540,107 @@ class CharacterWorkspace(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(12)
 
-        title = QLabel("Step 6: Character Setup Complete!")
+        title = QLabel("Step 6: Ready to Perform")
         font_t = QFont(title.font())
         font_t.setPointSize(15)
         font_t.setBold(True)
         title.setFont(font_t)
-        title.setStyleSheet("color: #10b981;")
         layout.addWidget(title)
 
-        desc = QLabel("Your character is fully rigged, calibrated, and ready to perform live in CPC Studio.")
-        desc.setStyleSheet("color: #d4d4d8; font-size: 13px;")
+        desc = QLabel("Your character is fully configured and ready for live performance capture.")
+        desc.setStyleSheet("color: #9ca3af; font-size: 13px;")
         desc.setWordWrap(True)
         layout.addWidget(desc)
 
-        # Summary Breakdown Box
-        sum_box = QGroupBox("Configuration Summary")
-        sb_layout = QGridLayout(sum_box)
-        sb_layout.setContentsMargins(12, 16, 12, 12)
-        sb_layout.setSpacing(8)
+        # Summary confirmation card
+        sum_card = QFrame()
+        sum_card.setStyleSheet("background-color: #14141c; border: 1px solid #232330; border-radius: 8px; padding: 14px;")
+        sc_layout = QVBoxLayout(sum_card)
+        sc_layout.setSpacing(8)
 
-        sb_layout.addWidget(QLabel("Character:"), 0, 0)
-        self._sum_char_val = QLabel("--")
-        self._sum_char_val.setStyleSheet("color: #10b981; font-weight: 700;")
-        sb_layout.addWidget(self._sum_char_val, 0, 1)
+        self._ready_char_lbl = QLabel("Character: --")
+        self._ready_char_lbl.setStyleSheet("font-size: 13px; color: #ffffff;")
+        sc_layout.addWidget(self._ready_char_lbl)
 
-        sb_layout.addWidget(QLabel("Tracking Model:"), 1, 0)
-        self._sum_model_val = QLabel("MediaPipe Face Landmarker")
-        self._sum_model_val.setStyleSheet("color: #10b981; font-weight: 700;")
-        sb_layout.addWidget(self._sum_model_val, 1, 1)
+        self._ready_model_lbl = QLabel("Tracker: MediaPipe Face Landmarker (CPU)")
+        self._ready_model_lbl.setStyleSheet("font-size: 13px; color: #ffffff;")
+        sc_layout.addWidget(self._ready_model_lbl)
 
-        sb_layout.addWidget(QLabel("Rig Sidecar:"), 2, 0)
-        self._sum_rig_val = QLabel("--")
-        self._sum_rig_val.setStyleSheet("color: #10b981; font-weight: 700;")
-        sb_layout.addWidget(self._sum_rig_val, 2, 1)
+        self._ready_rig_lbl = QLabel("Rig: Active & Verified")
+        self._ready_rig_lbl.setStyleSheet("font-size: 13px; color: #10b981;")
+        sc_layout.addWidget(self._ready_rig_lbl)
 
-        sb_layout.addWidget(QLabel("Neutral Pose:"), 3, 0)
-        self._sum_pose_val = QLabel("Calibrated ✓")
-        self._sum_pose_val.setStyleSheet("color: #10b981; font-weight: 700;")
-        sb_layout.addWidget(self._sum_pose_val, 3, 1)
+        layout.addWidget(sum_card)
 
-        layout.addWidget(sum_box)
-
-        # Primary Action: Start Performing!
+        # Dominant Handoff CTA
         self._btn_start_performing = QPushButton("▶  Start Performing in Live Studio")
         self._btn_start_performing.setProperty("primary", True)
-        self._btn_start_performing.setMinimumHeight(48)
-        font_hero = QFont(self._btn_start_performing.font())
-        font_hero.setPointSize(14)
-        font_hero.setBold(True)
-        self._btn_start_performing.setFont(font_hero)
+        self._btn_start_performing.setMinimumHeight(46)
+        font_sp = QFont(self._btn_start_performing.font())
+        font_sp.setPointSize(14)
+        font_sp.setBold(True)
+        self._btn_start_performing.setFont(font_sp)
         self._btn_start_performing.clicked.connect(self._start_performing)
         layout.addWidget(self._btn_start_performing)
+
+        layout.addStretch(1)
+
+        nav_row = QHBoxLayout()
+        btn_back = QPushButton("← Back")
+        btn_back.setMinimumHeight(40)
+        btn_back.clicked.connect(lambda: self._set_step(4))
+        nav_row.addWidget(btn_back)
+        nav_row.addStretch(1)
+        layout.addLayout(nav_row)
 
         return page
 
     # -------------------------------------------------------------
-    # Step Progression & Navigation
+    # Navigation & Step State Logic
     # -------------------------------------------------------------
-    def _set_step(self, step_idx: int) -> None:
-        self._current_step = step_idx
-        self._stack.setCurrentIndex(step_idx)
+    def _jump_to_step(self, idx: int) -> None:
+        self._set_step(idx)
+
+    def _set_step(self, idx: int) -> None:
+        self._current_step = idx
+        self._stack.setCurrentIndex(idx)
         self._update_rail()
 
-        # Update step specific data
-        if step_idx == 2:  # Step 3 Build Rig
-            if self._character_path:
-                self._lbl_rig_char_name.setText(self._character_path.name)
-                def_rig = default_rig_path(self._character_path)
-                self._lbl_rig_dest_path.setText(str(def_rig.name))
-        elif step_idx == 5:  # Step 6 Ready
-            if self._character_path:
-                self._sum_char_val.setText(f"{self._character_path.name} ✓")
-            if self._rig_path:
-                self._sum_rig_val.setText(f"{self._rig_path.name} ✓")
+        # Update visualizer toolbar visibility (only relevant when inspecting/verifying a rig)
+        show_viz = idx >= 3 and self._current_rig is not None
+        self._viz_toolbar_widget.setVisible(show_viz)
 
-    def _jump_to_step(self, step_idx: int) -> None:
-        # Allow jumping to any step up to current or if previous steps are completed
-        if step_idx <= self._current_step or self._step_completed[step_idx]:
-            self._set_step(step_idx)
-        else:
-            # Fallback to current
-            self._update_rail()
+        if idx == 5:
+            self._update_ready_summary()
 
     def _update_rail(self) -> None:
         for i, btn in enumerate(self._step_buttons):
             btn.setChecked(i == self._current_step)
-            if self._step_completed[i]:
-                btn.setText(f"✓ {self._step_names[i]}")
+            is_done = self._step_completed[i]
+            base_name = self._step_names[i]
+            if is_done:
+                btn.setText(f"✓ {base_name}")
+                btn.setStyleSheet(
+                    "QPushButton { background-color: transparent; border: 1px solid transparent; "
+                    "border-radius: 6px; padding: 6px 14px; font-weight: 600; font-size: 12px; color: #10b981; } "
+                    "QPushButton:checked { background-color: #1e3a8a; border: 1px solid #3b82f6; color: #ffffff; } "
+                    "QPushButton:hover:!checked { background-color: #171722; color: #6ee7b7; }"
+                )
             else:
-                btn.setText(self._step_names[i])
+                btn.setText(base_name)
+                btn.setStyleSheet(
+                    "QPushButton { background-color: transparent; border: 1px solid transparent; "
+                    "border-radius: 6px; padding: 6px 14px; font-weight: 500; font-size: 12px; color: #9ca3af; } "
+                    "QPushButton:checked { background-color: #1e3a8a; border: 1px solid #3b82f6; color: #ffffff; font-weight: 600; } "
+                    "QPushButton:hover:!checked { background-color: #171722; color: #d1d1d6; }"
+                )
+
+    def _update_ready_summary(self) -> None:
+        c_name = self._character_path.name if self._character_path else "None"
+        self._ready_char_lbl.setText(f"Character: {c_name}")
+        self._ready_model_lbl.setText(f"Tracker: {self.model_selector.get_selected_entry().name} ({self._delegate.upper()})")
+        r_status = "Active & Verified (478 pts)" if self._current_rig else "Missing"
+        self._ready_rig_lbl.setText(f"Rig: {r_status}")
 
     # -------------------------------------------------------------
     # Step 1: Character Event Handlers
@@ -632,171 +648,150 @@ class CharacterWorkspace(QWidget):
     def _load_recents(self) -> None:
         self._recents_combo.blockSignals(True)
         self._recents_combo.clear()
-        self._recents_combo.addItem("Select Recent Character...", "")
+        self._recents_combo.addItem("Select Recent Character...")
         recents = self._settings.get_recent_items("characters")
-        for r in recents:
-            self._recents_combo.addItem(Path(r).name, r)
+        for item in recents:
+            self._recents_combo.addItem(Path(item).name, item)
         self._recents_combo.blockSignals(False)
 
     def _on_recent_selected(self, idx: int) -> None:
-        if idx <= 0:
+        if idx == 0:
             return
-        path_str = self._recents_combo.itemData(idx)
-        if path_str and Path(path_str).is_file():
-            self._char_edit.setText(path_str)
+        data = self._recents_combo.currentData()
+        if data:
+            self._char_edit.setText(str(data))
 
     def _toggle_favorite(self) -> None:
-        char_str = self._char_edit.text().strip()
-        if not char_str:
-            return
-        is_fav = self._settings.toggle_favorite("characters", char_str)
-        self._fav_btn.setText("★" if is_fav else "☆")
-        self._fav_btn.setStyleSheet("color: #f59e0b;" if is_fav else "")
+        if self._character_path:
+            is_fav = self._settings.toggle_favorite("characters", self._character_path)
+            self._fav_btn.setText("★" if is_fav else "☆")
 
     def _browse_character(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
-            "Select Character Artwork",
+            "Select Character Reference Image",
             self._settings.get_last_directory(),
             "Image Files (*.png *.jpg *.jpeg *.webp);;All Files (*)",
         )
         if path:
             self._settings.set_last_directory(path)
-            self._settings.add_recent_item("characters", path)
             self._char_edit.setText(path)
+            self._settings.add_recent_item("characters", Path(path))
             self._load_recents()
 
-    def _reveal_character(self) -> None:
-        if self._character_path and self._character_path.is_file():
-            QDesktopServices.openUrl(f"file://{self._character_path.parent.resolve()}")
-
-    def _on_character_path_changed(self) -> None:
-        char_str = self._char_edit.text().strip()
-        if not char_str:
-            self._canvas_lbl.clear()
-            self._canvas_lbl.setText("No character loaded\n\nDrag & drop artwork PNG/JPG or click Choose Character")
+    def _on_character_path_changed(self, text: str) -> None:
+        path_str = text.strip()
+        if not path_str:
             self._character_path = None
             self._character_img = None
-            self._current_rig = None
-            self._rig_path = None
+            self._char_summary_card.setVisible(False)
             self._btn_step1_next.setEnabled(False)
-            self._existing_rig_banner.setVisible(False)
-            self._step_completed = [False] * 6
+            self._step_completed[0] = False
+            self._canvas_lbl.setText("No character loaded\n\nDrag & drop artwork PNG/JPG or click Choose Character")
+            self._canvas_lbl.setPixmap(QPixmap())
             self._update_rail()
             return
 
-        char_path = Path(char_str)
-        if not char_path.is_file():
-            self._canvas_lbl.setText("Character image file not found.")
-            self._btn_step1_next.setEnabled(False)
-            return
+        p = Path(path_str)
+        if p.is_file():
+            self._character_path = p
+            img = cv2.imread(str(p))
+            if img is not None:
+                self._character_img = img
+                h, w = img.shape[:2]
+                self._char_filename_lbl.setText(p.name)
+                self._char_info_lbl.setText(f"Dimensions: {w} × {h} px  |  Path: {p.parent.name}/{p.name}")
+                self._char_summary_card.setVisible(True)
+                self._btn_step1_next.setEnabled(True)
+                self._step_completed[0] = True
 
-        img = cv2.imread(str(char_path))
-        if img is None:
-            self._canvas_lbl.setText("Failed to decode image format.")
-            self._btn_step1_next.setEnabled(False)
-            return
+                # Check for existing rig sidecar
+                expected_rig = default_rig_path(p)
+                if expected_rig.is_file():
+                    try:
+                        self._current_rig = load_rig(expected_rig)
+                        self._rig_path = expected_rig
+                        self._existing_rig_banner.setVisible(True)
+                        self._step_completed[2] = True
+                        self._btn_step3_next.setEnabled(True)
+                        self._rig_details_lbl.setText(f"Rig Points: {len(self._current_rig.points)} | Auto-loaded")
+                    except (RuntimeError, ValueError, OSError, KeyError):
+                        self._current_rig = None
+                        self._existing_rig_banner.setVisible(False)
+                else:
+                    self._current_rig = None
+                    self._existing_rig_banner.setVisible(False)
 
-        self._character_path = char_path
-        self._character_img = img
-        h, w = img.shape[:2]
-        self._char_info_lbl.setText(f"Dimensions: {w} × {h} px")
-        self._btn_step1_next.setEnabled(True)
-        self._step_completed[0] = True
-
-        # Check existing rig sidecar
-        def_rig = default_rig_path(char_path)
-        if def_rig.is_file():
-            try:
-                rig = load_rig(def_rig)
-                self._current_rig = rig
-                self._rig_path = def_rig
-                self._existing_rig_banner.setVisible(True)
-                self._step_completed[2] = True  # Rig built
-                self._step_completed[3] = True  # Verified
-            except (RuntimeError, ValueError, OSError, FileNotFoundError):
-                self._existing_rig_banner.setVisible(False)
-        else:
-            self._existing_rig_banner.setVisible(False)
-
-        self._refresh_preview()
-        self._update_rail()
+                self._render_character_preview(img)
+                self._update_rail()
 
     # -------------------------------------------------------------
     # Step 2: Tracking Event Handlers
     # -------------------------------------------------------------
-    def _on_model_changed(self, model_id: str, resolved_path: Path | None, delegate: str) -> None:
+    def _on_model_selection_changed(self, model_id: str, resolved_path: Path | None, delegate: str) -> None:
         self._model_id = model_id
         self._model_path = resolved_path
         self._delegate = delegate
         is_ready = self.model_selector.is_ready()
-        self._btn_step2_next.setEnabled(is_ready)
         self._step_completed[1] = is_ready
+        self._btn_step2_next.setEnabled(is_ready)
         self._update_rail()
 
     # -------------------------------------------------------------
     # Step 3: Build Rig Event Handlers
     # -------------------------------------------------------------
-    def derive_rig(self) -> None:
-        if not self._character_path or not self._character_path.is_file():
-            QMessageBox.warning(self, "Missing Character", "Please select a valid character image first.")
+    def _build_rig_action(self) -> None:
+        if not self._character_path:
+            QMessageBox.warning(self, "Missing Character", "Please choose a character image first.")
+            self._set_step(0)
             return
 
         model_path = self.model_selector.get_resolved_path()
         if not model_path or not model_path.is_file():
-            QMessageBox.warning(
-                self,
-                "Model Required",
-                "MediaPipe Face Landmarker model is required. Please install or select a model in Step 2.",
-            )
+            QMessageBox.warning(self, "Missing Model", "Please install or select a valid tracking model in Step 2.")
             self._set_step(1)
             return
 
-        rig_path = default_rig_path(self._character_path)
+        self._btn_build_rig.setEnabled(False)
+        self._derive_prog.setVisible(True)
+        self._rig_status_msg.setText("Analyzing character face geometry...")
 
-        # Overwrite Confirmation
-        if rig_path.is_file():
-            reply = QMessageBox.question(
-                self,
-                "Overwrite Existing Rig?",
-                f"A rig sidecar already exists at:\n{rig_path.name}\n\nDo you want to re-derive and overwrite it?",
-                QMessageBox.Yes | QMessageBox.No,
-                QMessageBox.No,
-            )
-            if reply != QMessageBox.Yes:
-                return
-
-        self._derive_btn.setEnabled(False)
-        self._derive_progress.setVisible(True)
-        self._derive_status_lbl.setText("Detecting facial landmarks on character artwork...")
-        self._log_text.append(f"Starting rig derivation on {self._character_path.name}...")
-
-        self._derive_worker = DeriveRigWorker(self._character_path, model_path, rig_path, self._delegate, self)
-        self._derive_worker.rig_derived.connect(self._on_rig_derived)
+        self._derive_worker = DeriveRigWorker(
+            character_path=self._character_path,
+            model_path=model_path,
+            delegate=self._delegate,
+            parent=self,
+        )
+        self._derive_worker.stage_changed.connect(lambda msg: self._rig_status_msg.setText(msg))
+        self._derive_worker.derived_success.connect(self._on_rig_derived)
         self._derive_worker.error_occurred.connect(self._on_derive_error)
         self._derive_worker.start()
 
-    def _on_rig_derived(self, rig: CharacterRig, rig_path_str: str) -> None:
-        self._derive_btn.setEnabled(True)
-        self._derive_progress.setVisible(False)
+    def _on_rig_derived(self, rig: CharacterRig, rig_path: Path | str) -> None:
+        self._derive_worker = None
+        self._btn_build_rig.setEnabled(True)
+        self._derive_prog.setVisible(False)
         self._current_rig = rig
-        self._rig_path = Path(rig_path_str)
-        self._derive_status_lbl.setText("✓ Rig built successfully!")
-        self._log_text.append(f"SUCCESS: Derived {rig.point_count} landmarks. Rig saved to {rig_path_str}")
-
+        p_obj = Path(rig_path)
+        self._rig_path = p_obj
         self._step_completed[2] = True
         self._step_completed[3] = True
-        self._refresh_preview()
+        self._btn_step3_next.setEnabled(True)
+        self._rig_status_msg.setText(f"✓ Character Rig Built ({len(rig.points)} points)")
+        self._rig_details_lbl.setText(f"Rig Points: {len(rig.points)}  |  Saved to: {p_obj.name}")
         self._update_rail()
+        self._set_step(3)  # Advance to Verify
+        self._refresh_preview()
 
-        # Advance to Step 4 Verify
-        self._set_step(3)
+    def _on_step4_next_clicked(self) -> None:
+        self._step_completed[3] = True
+        self._set_step(4)
 
-    def _on_derive_error(self, user_msg: str, tech_details: str) -> None:
-        self._derive_btn.setEnabled(True)
-        self._derive_progress.setVisible(False)
-        self._derive_status_lbl.setText("✕ Derivation failed")
-        self._log_text.append(f"ERROR: {user_msg}\n{tech_details}")
+    def _on_derive_error(self, err_msg: str, tech_details: str) -> None:
+        self._derive_worker = None
+        self._btn_build_rig.setEnabled(True)
+        self._derive_prog.setVisible(False)
+        self._rig_status_msg.setText("Rig derivation failed.")
 
         friendly_msg = (
             "CPC couldn't find a usable face in this character image.\n\n"
