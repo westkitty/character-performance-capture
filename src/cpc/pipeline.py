@@ -40,8 +40,22 @@ class Pipeline:
     def start(self) -> None:
         if self._started:
             return
-        for processor in self.processors:
-            processor.start()
+
+        started_processors: list[FrameProcessor] = []
+        try:
+            for processor in self.processors:
+                processor.start()
+                started_processors.append(processor)
+        except Exception:
+            for processor in reversed(started_processors):
+                try:
+                    processor.close()
+                except Exception:
+                    pass
+            raise
+
+        self._frame_index = 0
+        self._last_frame_time = None
         self._started = True
 
     def process(self, frame: Frame) -> tuple[Frame, FrameMetrics]:
@@ -76,6 +90,7 @@ class Pipeline:
         for processor in reversed(self.processors):
             processor.close()
         self._started = False
+        self._last_frame_time = None
 
     def __enter__(self) -> Self:
         self.start()
