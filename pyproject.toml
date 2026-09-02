@@ -17,6 +17,15 @@ dependencies = [
 tracker-mediapipe = [
   "mediapipe>=0.10.35,<2",
 ]
+blackbox-mlx = [
+  "mlx-vlm>=0.6.17,<0.7",
+]
+blackbox-qwen = [
+  "torch>=2.0",
+  "transformers>=5.4,<6",
+  "qwen-vl-utils",
+  "Pillow>=10",
+]
 dev = [
   "pytest>=8,<10",
   "ruff>=0.6,<1",
@@ -24,6 +33,7 @@ dev = [
 
 [project.scripts]
 cpc = "cpc.app:main"
+cpc-blackbox = "cpc.blackbox_cli:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}

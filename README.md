@@ -17,9 +17,10 @@ Implemented source now contains:
 - optional MediaPipe Face Landmarker adapter
 - live FPS / processing latency / tracking-status overlay
 - local-only hardware/tracker diagnostics via `cpc --doctor`
+- local Performance Black Box indexing/search/evidence tooling on the feature branch
 - unit tests and GitHub Actions checks
 
-Runtime validation on the target Macs is still required before any webcam or throughput claim is considered verified.
+Runtime validation on the target Macs is still required before any webcam, MLX/Qwen, or throughput claim is considered verified.
 
 ## Install core
 
@@ -81,6 +82,71 @@ cpc --inspect-performance takes/take-001.cpc
 
 See [`docs/PERFORMANCE_CAPTURE_FORMAT.md`](docs/PERFORMANCE_CAPTURE_FORMAT.md) for the format contract.
 
+## Performance Black Box
+
+The Black Box is downstream of `.cpc`: it stores derived searchable segments, kinematic fingerprints, optional semantic vectors, human evidence states, bug packets, review queues, and build-to-build retrieval benchmarks without changing the canonical capture format.
+
+Initialize and index a take:
+
+```bash
+cpc-blackbox init
+cpc-blackbox index takes/take-001.cpc \
+  --media media/take-001.mp4 \
+  --build build-17 \
+  --fixture canonical-smile-left
+```
+
+Find similar motion or promote a visible failure into durable evidence:
+
+```bash
+cpc-blackbox search --reference 12
+cpc-blackbox bug 12 JAW-004 "jaw wobbles during left turn" \
+  --expected "jaw remains stable while yaw changes"
+```
+
+### MacBook Air / Apple Silicon semantic path
+
+The constrained Apple-Silicon route uses the optional MIT-licensed `mlx-vlm` runtime and the Apache-2.0 `mlx-community/Qwen3-VL-Embedding-2B-4bit` model. CPC still requires a local model directory at runtime; only the explicit bootstrap command below downloads the selected model.
+
+On the MacBook feature branch:
+
+```bash
+./scripts/macbook_blackbox_bootstrap.sh
+```
+
+The bootstrap performs the existing 120-frame camera doctor first, creates an isolated project venv under `~/Library/Application Support/CharacterPerformanceCapture/blackbox`, downloads the 4-bit MLX model if absent, then runs a text+synthetic-image embedding smoke test under `/usr/bin/time -l`. It does not persist a camera frame for the semantic smoke.
+
+The Mac profile intentionally samples each indexed performance window as at most four chronological images at up to 448 px rather than decoding a whole video into the embedding model:
+
+```bash
+cpc-blackbox qwen-embed \
+  --capture-id 4 \
+  --runtime mlx \
+  --model-path "$HOME/Library/Application Support/CharacterPerformanceCapture/blackbox/models/Qwen3-VL-Embedding-2B-4bit" \
+  --dimensions 768
+```
+
+Directorial text + image search uses the same vector namespace and can still add a CPC kinematic reference segment:
+
+```bash
+cpc-blackbox qwen-search "same expression, eyes toward camera" \
+  --image refs/expression.png \
+  --reference 12 \
+  --runtime mlx \
+  --model-path "$HOME/Library/Application Support/CharacterPerformanceCapture/blackbox/models/Qwen3-VL-Embedding-2B-4bit" \
+  --dimensions 768
+```
+
+After matching canonical fixtures exist in two builds, benchmark whether semantics actually help rather than trusting cosine scores:
+
+```bash
+cpc-blackbox benchmark build-17 build-18 \
+  --provider qwen3-vl-mlx \
+  --model 'mlx-community/Qwen3-VL-Embedding-2B-4bit@768d'
+```
+
+See [`docs/PERFORMANCE_BLACK_BOX.md`](docs/PERFORMANCE_BLACK_BOX.md) for the data model, evidence rules, model boundaries, and benchmark contract.
+
 ## Architectural boundary
 
 ```text
@@ -91,15 +157,15 @@ performance tracker
      |
      v
 portable PerformanceFrame -----> .cpc recorder / replay
-     |
-     v
-character renderer
-     |
+     |                                  |
+     v                                  v
+character renderer               Performance Black Box
+     |                           (derived local evidence)
      v
 preview / recorder / virtual camera
 ```
 
-Tracking and rendering are deliberately separate. The renderer should be replaceable without invalidating recorded performances.
+Tracking and rendering are deliberately separate. The renderer should be replaceable without invalidating recorded performances. The Black Box is also replaceable: embeddings and fingerprints are derived from canonical `.cpc` data plus explicitly associated local media.
 
 ## Repository license
 
@@ -109,7 +175,9 @@ Third-party components, optional dependencies, models, datasets, and assets rema
 
 ## Licensing boundary
 
-The repository core has no InsightFace or Inswapper dependency. Optional third-party trackers/renderers must be evaluated as separate adapters, including their code and model licenses. A backend is not production/commercial-ready merely because its Python package is permissively licensed.
+The repository core has no InsightFace or Inswapper dependency. Optional third-party trackers/renderers/embedding runtimes must be evaluated as separate adapters, including their code and model licenses. A backend is not production/commercial-ready merely because one layer of its stack is permissively licensed.
+
+The MacBook semantic adapter uses `mlx-vlm` (MIT) rather than the GPL `mlx-embeddings` package so the committed CPC integration does not introduce that GPL dependency.
 
 ## Repository governance
 
@@ -119,6 +187,6 @@ See [`docs/REPOSITORY_GOVERNANCE.md`](docs/REPOSITORY_GOVERNANCE.md) for the exa
 
 ## Privacy boundary
 
-The intended path is local-first. No camera frame, reference image, recorded performance, or character asset is uploaded by the core pipeline.
+The intended path is local-first. No camera frame, reference image, recorded performance, semantic embedding source media, or character asset is uploaded by the core pipeline.
 
 Do not commit user media, recorded takes, reference portraits, generated outputs, downloaded model weights, caches, or secrets.
