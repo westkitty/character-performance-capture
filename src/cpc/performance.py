@@ -11,7 +11,7 @@ JsonScalar = str | int | float | bool | None
 
 def _finite(value: float, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, Real):
-        raise ValueError(f"{field_name} must be a finite number")
+        raise TypeError(f"{field_name} must be a finite number")
     normalized = float(value)
     if not math.isfinite(normalized):
         raise ValueError(f"{field_name} must be finite")
@@ -26,7 +26,7 @@ def _finite_tuple(
     if values is None:
         return None
     if not isinstance(values, (tuple, list)):
-        raise ValueError(f"{field_name} must be a sequence")
+        raise TypeError(f"{field_name} must be a sequence")
     if len(values) != length:
         raise ValueError(f"{field_name} must contain exactly {length} values")
     return tuple(_finite(value, field_name) for value in values)
@@ -62,7 +62,7 @@ class Landmark:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> Landmark:
         if not isinstance(payload, dict):
-            raise ValueError("landmark must be an object")
+            raise TypeError("landmark must be an object")
         return cls(
             x=payload["x"],
             y=payload["y"],
@@ -91,14 +91,18 @@ class PerformanceFrame:
 
     def __post_init__(self) -> None:
         if type(self.frame_index) is not int:
-            raise ValueError("frame_index must be an integer")
+            raise TypeError("frame_index must be an integer")
         if self.frame_index < 0:
             raise ValueError("frame_index must be non-negative")
         if type(self.tracked) is not bool:
-            raise ValueError("tracked must be a boolean")
-        if not isinstance(self.tracker, str) or not self.tracker.strip():
+            raise TypeError("tracked must be a boolean")
+        if not isinstance(self.tracker, str):
+            raise TypeError("tracker must be a string")
+        if not self.tracker.strip():
             raise ValueError("tracker must not be empty")
-        if not isinstance(self.profile, str) or not self.profile.strip():
+        if not isinstance(self.profile, str):
+            raise TypeError("profile must be a string")
+        if not self.profile.strip():
             raise ValueError("profile must not be empty")
 
         timestamp_s = _finite(self.timestamp_s, "timestamp_s")
@@ -113,11 +117,13 @@ class PerformanceFrame:
             object.__setattr__(self, "tracking_confidence", confidence)
 
         if not isinstance(self.blendshapes, dict):
-            raise ValueError("blendshapes must be an object")
+            raise TypeError("blendshapes must be an object")
         normalized_blendshapes: dict[str, float] = {}
         for name, raw_value in self.blendshapes.items():
-            if not isinstance(name, str) or not name.strip():
-                raise ValueError("blendshape names must be non-empty strings")
+            if not isinstance(name, str):
+                raise TypeError("blendshape names must be strings")
+            if not name.strip():
+                raise ValueError("blendshape names must not be empty")
             value = _finite(raw_value, f"blendshape:{name}")
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"blendshape {name!r} must be between 0 and 1")
@@ -130,13 +136,13 @@ class PerformanceFrame:
         face_transform = _finite_tuple(self.face_transform, 16, "face_transform")
 
         if not isinstance(self.landmarks, (tuple, list)):
-            raise ValueError("landmarks must be a sequence")
+            raise TypeError("landmarks must be a sequence")
         landmarks = tuple(self.landmarks)
         if any(not isinstance(item, Landmark) for item in landmarks):
-            raise ValueError("landmarks must contain Landmark objects")
+            raise TypeError("landmarks must contain Landmark objects")
 
         if not isinstance(self.metadata, dict):
-            raise ValueError("metadata must be an object")
+            raise TypeError("metadata must be an object")
         metadata = dict(self.metadata)
 
         object.__setattr__(self, "head_rotation_deg", head_rotation)
@@ -171,11 +177,11 @@ class PerformanceFrame:
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> PerformanceFrame:
         if not isinstance(payload, dict):
-            raise ValueError("performance frame must be an object")
+            raise TypeError("performance frame must be an object")
 
         landmarks_payload = payload.get("landmarks", [])
         if not isinstance(landmarks_payload, list):
-            raise ValueError("landmarks must be an array")
+            raise TypeError("landmarks must be an array")
 
         return cls(
             frame_index=payload["frame_index"],
