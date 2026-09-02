@@ -382,6 +382,7 @@ class LiveWorkspace(QWidget):
         self._splitter.setStretchFactor(2, 0)
 
         workspace_layout.addWidget(self._splitter, 1)
+        self.set_session_config(SessionConfig())
 
     # -----------------------------------------------------------------
     # Preflight & Configuration Management
