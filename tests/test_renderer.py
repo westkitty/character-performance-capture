@@ -23,7 +23,15 @@ def _character() -> np.ndarray:
     return img
 
 
-def _perf(points: np.ndarray, *, tracked=True, confidence=None, index=0, ts=0.0) -> PerformanceFrame:
+def _perf(
+    points: np.ndarray,
+    *,
+    tracked=True,
+    confidence=None,
+    index=0,
+    ts=0.0,
+    head_rotation_deg=None,
+) -> PerformanceFrame:
     return PerformanceFrame(
         frame_index=index,
         timestamp_s=ts,
@@ -31,6 +39,7 @@ def _perf(points: np.ndarray, *, tracked=True, confidence=None, index=0, ts=0.0)
         tracker="fake",
         profile="grid-49",
         tracking_confidence=confidence,
+        head_rotation_deg=head_rotation_deg,
         landmarks=tuple(Landmark(float(x), float(y)) for x, y in points),
     )
 
@@ -113,6 +122,26 @@ def test_pathological_landmarks_are_clamped_to_a_valid_image():
     out = r.render(char, _perf(wild, index=1, ts=0.033))
     assert out.shape == char.shape and out.dtype == np.uint8
     assert np.isfinite(out).all()
+    r.close()
+
+
+def test_head_rotation_is_applied_relative_to_calibrated_neutral():
+    rig, char = _rig(), _character()
+    r = RigWarpRenderer(rig, char, head_gain=1.0)
+    r.start()
+    norm = _normalized_from_rig(rig)
+
+    # calibrate at a non-zero resting head pose
+    r.render(char, _perf(norm, index=0, ts=0.0, head_rotation_deg=(6.0, -3.0, 28.0)))
+
+    # a frame at the SAME head pose must not add any head transform -> reference
+    same = r.render(char, _perf(norm, index=1, ts=0.03, head_rotation_deg=(6.0, -3.0, 28.0)))
+    assert np.array_equal(same, char)
+
+    # a real head turn away from neutral changes the output
+    turned = r.render(char, _perf(norm, index=2, ts=0.06, head_rotation_deg=(6.0, 22.0, 28.0)))
+    assert turned.shape == char.shape and np.isfinite(turned).all()
+    assert not np.array_equal(turned, char)
     r.close()
 
 

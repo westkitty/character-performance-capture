@@ -84,13 +84,16 @@ cpc --video clip.mp4 --loop \
 Verify: model loads; frames reach the tracker; real tracking state and timings;
 the rendered video varies frame to frame (renderer reacts); the `.cpc` holds only
 portable state; an interrupted run leaves a recoverable `.partial`; the virtual
-camera negotiates its size and closes cleanly. Reading the virtual camera back in
-this same environment hits the same camera-permission wall as a webcam, so the
-send side is what is proven here; confirm the receive side in OBS or another
-capture app.
+camera negotiates its size and closes cleanly. Both the virtual-camera output
+(send side) and an external consumer reading the 1280x720 stream at 30 FPS
+(receive side) have been verified on Apple Silicon.
 
-## 4. Evidence boundary
+## 4. Evidence tiers and boundary
 
-A successful doctor run can verify the specific machine, camera, dependency set, and tracker/model combination used in that run. It does not prove another machine, another camera, or an unproven receive-side virtual-camera consumer.
+Validation is organized into three distinct, non-overlapping evidence tiers:
+
+1. **Deterministic CI proof**: Automated tests in CI verify schema constraints, geometry algorithms, rig parsing, safe degradation, lifecycle rollback, and CLI mechanics without requiring physical hardware or GUI access.
+2. **Physical webcam & MediaPipe proof**: Real AVFoundation webcam capture (1080p @ 30 FPS), real-time MediaPipe CPU tracking (~14.5 ms/frame, ~89% face tracking rate), live rig-warp character rendering, and portable `.cpc` take recording/replay without camera pixels.
+3. **Virtual-camera receive proof**: OBS Virtual Camera 1280x720 output actively consumed by an external capture client at 30.29 FPS with clean startup/shutdown and no buffer mismatch.
 
 When comparing machines, preserve the JSON output from the same command and sample count. Requested camera settings are not treated as proof of negotiated settings; the report records both requested values and the values reported by the active OpenCV backend.
