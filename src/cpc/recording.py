@@ -5,6 +5,7 @@ import math
 import os
 import time
 from collections.abc import Iterator
+from contextlib import suppress
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from numbers import Real
@@ -171,10 +172,8 @@ class PerformanceRecorder:
                 self._first_timestamp = frame.timestamp_s
             self._frame_count += 1
         except Exception:
-            try:
+            with suppress(Exception):
                 self.close(commit=False)
-            except Exception:
-                pass
             raise
 
     def close(self, *, commit: bool = True) -> None:
