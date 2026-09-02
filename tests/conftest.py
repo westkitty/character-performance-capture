@@ -1,5 +1,8 @@
+from __future__ import annotations
+
 from collections.abc import Generator
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -13,7 +16,7 @@ except ImportError:
 
 
 @pytest.fixture(scope="session")
-def qapp() -> Generator[QApplication | None, None, None]:
+def qapp() -> Generator[Any, None, None]:
     """Provide a single global QApplication instance for the test session in offscreen mode."""
     if not HAS_PYSIDE6:
         yield None
