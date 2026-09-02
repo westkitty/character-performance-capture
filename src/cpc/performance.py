@@ -3,16 +3,19 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
+from numbers import Real
 from typing import Any
 
 JsonScalar = str | int | float | bool | None
 
 
 def _finite(value: float, field_name: str) -> float:
-    value = float(value)
-    if not math.isfinite(value):
+    if isinstance(value, bool) or not isinstance(value, Real):
+        raise ValueError(f"{field_name} must be a finite number")
+    normalized = float(value)
+    if not math.isfinite(normalized):
         raise ValueError(f"{field_name} must be finite")
-    return value
+    return normalized
 
 
 def _finite_tuple(
@@ -22,6 +25,8 @@ def _finite_tuple(
 ) -> tuple[float, ...] | None:
     if values is None:
         return None
+    if not isinstance(values, (tuple, list)):
+        raise ValueError(f"{field_name} must be a sequence")
     if len(values) != length:
         raise ValueError(f"{field_name} must contain exactly {length} values")
     return tuple(_finite(value, field_name) for value in values)
@@ -56,6 +61,8 @@ class Landmark:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> Landmark:
+        if not isinstance(payload, dict):
+            raise ValueError("landmark must be an object")
         return cls(
             x=payload["x"],
             y=payload["y"],
@@ -83,18 +90,21 @@ class PerformanceFrame:
     metadata: dict[str, JsonScalar] = field(default_factory=dict)
 
     def __post_init__(self) -> None:
+        if type(self.frame_index) is not int:
+            raise ValueError("frame_index must be an integer")
         if self.frame_index < 0:
             raise ValueError("frame_index must be non-negative")
+        if type(self.tracked) is not bool:
+            raise ValueError("tracked must be a boolean")
+        if not isinstance(self.tracker, str) or not self.tracker.strip():
+            raise ValueError("tracker must not be empty")
+        if not isinstance(self.profile, str) or not self.profile.strip():
+            raise ValueError("profile must not be empty")
 
         timestamp_s = _finite(self.timestamp_s, "timestamp_s")
         if timestamp_s < 0.0:
             raise ValueError("timestamp_s must be non-negative")
         object.__setattr__(self, "timestamp_s", timestamp_s)
-
-        if not self.tracker.strip():
-            raise ValueError("tracker must not be empty")
-        if not self.profile.strip():
-            raise ValueError("profile must not be empty")
 
         if self.tracking_confidence is not None:
             confidence = _finite(self.tracking_confidence, "tracking_confidence")
@@ -102,14 +112,16 @@ class PerformanceFrame:
                 raise ValueError("tracking_confidence must be between 0 and 1")
             object.__setattr__(self, "tracking_confidence", confidence)
 
+        if not isinstance(self.blendshapes, dict):
+            raise ValueError("blendshapes must be an object")
         normalized_blendshapes: dict[str, float] = {}
         for name, raw_value in self.blendshapes.items():
-            if not str(name).strip():
-                raise ValueError("blendshape names must not be empty")
+            if not isinstance(name, str) or not name.strip():
+                raise ValueError("blendshape names must be non-empty strings")
             value = _finite(raw_value, f"blendshape:{name}")
             if not 0.0 <= value <= 1.0:
                 raise ValueError(f"blendshape {name!r} must be between 0 and 1")
-            normalized_blendshapes[str(name)] = value
+            normalized_blendshapes[name] = value
         object.__setattr__(self, "blendshapes", normalized_blendshapes)
 
         head_rotation = _finite_tuple(self.head_rotation_deg, 3, "head_rotation_deg")
@@ -117,15 +129,25 @@ class PerformanceFrame:
         gaze_right = _finite_tuple(self.gaze_right, 2, "gaze_right")
         face_transform = _finite_tuple(self.face_transform, 16, "face_transform")
 
+        if not isinstance(self.landmarks, (tuple, list)):
+            raise ValueError("landmarks must be a sequence")
+        landmarks = tuple(self.landmarks)
+        if any(not isinstance(item, Landmark) for item in landmarks):
+            raise ValueError("landmarks must contain Landmark objects")
+
+        if not isinstance(self.metadata, dict):
+            raise ValueError("metadata must be an object")
+        metadata = dict(self.metadata)
+
         object.__setattr__(self, "head_rotation_deg", head_rotation)
         object.__setattr__(self, "gaze_left", gaze_left)
         object.__setattr__(self, "gaze_right", gaze_right)
         object.__setattr__(self, "face_transform", face_transform)
-        object.__setattr__(self, "landmarks", tuple(self.landmarks))
-        object.__setattr__(self, "metadata", dict(self.metadata))
+        object.__setattr__(self, "landmarks", landmarks)
+        object.__setattr__(self, "metadata", metadata)
 
         try:
-            json.dumps(self.metadata, allow_nan=False)
+            json.dumps(metadata, allow_nan=False)
         except (TypeError, ValueError) as exc:
             raise ValueError("metadata must contain JSON-serializable finite values") from exc
 
@@ -148,20 +170,25 @@ class PerformanceFrame:
 
     @classmethod
     def from_dict(cls, payload: dict[str, Any]) -> PerformanceFrame:
+        if not isinstance(payload, dict):
+            raise ValueError("performance frame must be an object")
+
+        landmarks_payload = payload.get("landmarks", [])
+        if not isinstance(landmarks_payload, list):
+            raise ValueError("landmarks must be an array")
+
         return cls(
-            frame_index=int(payload["frame_index"]),
-            timestamp_s=float(payload["timestamp_s"]),
-            tracked=bool(payload["tracked"]),
-            tracker=str(payload["tracker"]),
-            profile=str(payload.get("profile", "generic")),
+            frame_index=payload["frame_index"],
+            timestamp_s=payload["timestamp_s"],
+            tracked=payload["tracked"],
+            tracker=payload["tracker"],
+            profile=payload.get("profile", "generic"),
             tracking_confidence=payload.get("tracking_confidence"),
-            blendshapes=dict(payload.get("blendshapes", {})),
+            blendshapes=payload.get("blendshapes", {}),
             head_rotation_deg=payload.get("head_rotation_deg"),
             gaze_left=payload.get("gaze_left"),
             gaze_right=payload.get("gaze_right"),
             face_transform=payload.get("face_transform"),
-            landmarks=tuple(
-                Landmark.from_dict(item) for item in payload.get("landmarks", [])
-            ),
-            metadata=dict(payload.get("metadata", {})),
+            landmarks=tuple(Landmark.from_dict(item) for item in landmarks_payload),
+            metadata=payload.get("metadata", {}),
         )
