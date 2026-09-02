@@ -31,7 +31,7 @@ from cpc.ui.worker import DiagnosticsWorker
 
 
 class DiagnosticsWorkspace(QWidget):
-    """Hardware diagnostics & benchmark workspace (cpc --doctor)."""
+    """Hardware diagnostics & benchmark workspace (cpc --doctor) with sampling presets and sanitized support export."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -52,7 +52,25 @@ class DiagnosticsWorkspace(QWidget):
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(12)
+        left_layout.setSpacing(10)
+
+        # Sampling Presets Toolbar
+        preset_box = QGroupBox("Probe Sampling Depth")
+        pb_layout = QHBoxLayout(preset_box)
+        pb_layout.setContentsMargins(10, 10, 10, 10)
+        pb_layout.setSpacing(8)
+
+        btn_q = QPushButton("Quick (30 frames)")
+        btn_q.clicked.connect(lambda: self._frames_spin.setValue(30))
+        btn_s = QPushButton("Standard (60 frames)")
+        btn_s.clicked.connect(lambda: self._frames_spin.setValue(60))
+        btn_e = QPushButton("Extended (180 frames)")
+        btn_e.clicked.connect(lambda: self._frames_spin.setValue(180))
+
+        pb_layout.addWidget(btn_q)
+        pb_layout.addWidget(btn_s)
+        pb_layout.addWidget(btn_e)
+        left_layout.addWidget(preset_box)
 
         config_group = QGroupBox("Probe Configuration")
         grid = QGridLayout(config_group)
@@ -137,6 +155,11 @@ class DiagnosticsWorkspace(QWidget):
         self._copy_json_btn.setEnabled(False)
         self._copy_json_btn.clicked.connect(self._copy_json)
         exp_layout.addWidget(self._copy_json_btn)
+
+        self._copy_support_btn = QPushButton("Copy Support Info")
+        self._copy_support_btn.setEnabled(False)
+        self._copy_support_btn.clicked.connect(self._copy_support_info)
+        exp_layout.addWidget(self._copy_support_btn)
 
         self._save_json_btn = QPushButton("Save Report...")
         self._save_json_btn.setEnabled(False)
@@ -230,6 +253,22 @@ class DiagnosticsWorkspace(QWidget):
         layout.addWidget(lbl_val, row, col_idx + 1)
         return lbl_val
 
+    def populate_from_session_config(self, cfg: SessionConfig) -> None:
+        """Transfer active session configuration directly into probe setup."""
+        if cfg.source_type == "video":
+            self._source_combo.setCurrentIndex(1)
+            self._video_edit.setText(str(cfg.video_path) if cfg.video_path else "")
+        else:
+            self._source_combo.setCurrentIndex(0)
+            self._cam_spin.setValue(cfg.camera_index)
+
+        if cfg.tracker_type == "mediapipe":
+            self._tracker_combo.setCurrentIndex(0)
+            self._model_edit.setText(str(cfg.model_path) if cfg.model_path else "")
+            self._delegate_combo.setCurrentIndex(1 if cfg.tracker_delegate == "gpu" else 0)
+        else:
+            self._tracker_combo.setCurrentIndex(1)
+
     def _on_source_type_changed(self) -> None:
         is_cam = self._source_combo.currentData() == "camera"
         self._cam_spin.setVisible(is_cam)
@@ -298,6 +337,7 @@ class DiagnosticsWorkspace(QWidget):
         self._run_btn.setEnabled(True)
         self._progress.setVisible(False)
         self._copy_json_btn.setEnabled(True)
+        self._copy_support_btn.setEnabled(True)
         self._save_json_btn.setEnabled(True)
         self._last_report = report
         self._worker = None
@@ -349,6 +389,24 @@ class DiagnosticsWorkspace(QWidget):
             if clipboard:
                 clipboard.setText(json.dumps(self._last_report, indent=2, sort_keys=True))
                 QMessageBox.information(self, "Copied", "Diagnostics JSON copied to clipboard.")
+
+    def _copy_support_info(self) -> None:
+        if not self._last_report:
+            return
+        sys_data = self._last_report.get("system", {})
+        cam_data = self._last_report.get("camera", {})
+        trk_data = self._last_report.get("tracker", {})
+
+        summary = (
+            f"CPC Environment Support Summary:\n"
+            f" • OS: {sys_data.get('system')} ({sys_data.get('machine')}) macOS {sys_data.get('macos_version')}\n"
+            f" • Python: {sys_data.get('python')} | OpenCV: {sys_data.get('opencv')} | MediaPipe: {sys_data.get('mediapipe')}\n"
+            f" • Ingest: {cam_data.get('backend')} ({cam_data.get('kind')}) @ {cam_data.get('overall_fps', 0):.1f} FPS\n"
+            f" • Tracker: {trk_data.get('name')} | Rate: {trk_data.get('tracking_rate', 0)*100:.1f}%\n"
+            f" • Privacy: Zero network calls, zero persisted camera pixels."
+        )
+        QGuiApplication.clipboard().setText(summary)
+        QMessageBox.information(self, "Copied", "Sanitized support info copied to clipboard.")
 
     def _save_json(self) -> None:
         if not self._last_report:

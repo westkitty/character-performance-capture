@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QColor, QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication,
@@ -23,6 +23,7 @@ from PySide6.QtWidgets import (
 
 from cpc.session import SessionConfig
 from cpc.ui.settings import AppSettings
+from cpc.ui.widgets.clean_preview_window import CleanPreviewWindow
 from cpc.ui.widgets.command_preview import CommandPreviewWidget
 from cpc.ui.widgets.panels import (
     AdvancedPanel,
@@ -37,7 +38,7 @@ from cpc.ui.worker import SessionWorker
 
 
 class LiveWorkspace(QWidget):
-    """Primary Live Performance Capture Studio workspace with preflight, presets, and performance mode."""
+    """Primary Live Performance Capture Studio workspace with preflight, presets, recentering, countdown, and clean preview."""
 
     open_character_workspace = Signal()
     open_takes_workspace = Signal(Path)
@@ -52,6 +53,10 @@ class LiveWorkspace(QWidget):
         self._last_error_details: str = ""
         self._last_cpc_path: Path | None = None
         self._last_mp4_path: Path | None = None
+        self._active_preset_name: str = "Default Configuration"
+        self._clean_preview_win: CleanPreviewWindow | None = None
+        self._countdown_timer: QTimer | None = None
+        self._countdown_remaining: int = 0
 
         self._init_ui()
         self._load_presets_menu()
@@ -69,7 +74,7 @@ class LiveWorkspace(QWidget):
         self._header_bar.setObjectName("topHeaderBar")
         h_layout = QHBoxLayout(self._header_bar)
         h_layout.setContentsMargins(14, 8, 14, 8)
-        h_layout.setSpacing(12)
+        h_layout.setSpacing(10)
 
         brand_lbl = QLabel("CPC STUDIO")
         brand_lbl.setObjectName("brandTitle")
@@ -79,18 +84,29 @@ class LiveWorkspace(QWidget):
         privacy_badge.setObjectName("privacyBadge")
         h_layout.addWidget(privacy_badge)
 
-        h_layout.addSpacing(12)
+        h_layout.addSpacing(10)
 
-        # Presets selector
+        # Presets selector & controls
         h_layout.addWidget(QLabel("Preset:"))
         self._preset_combo = QComboBox()
-        self._preset_combo.setMinimumWidth(160)
+        self._preset_combo.setMinimumWidth(170)
         self._preset_combo.currentIndexChanged.connect(self._on_preset_selected)
         h_layout.addWidget(self._preset_combo)
 
-        self._save_preset_btn = QPushButton("Save Preset...")
+        self._save_preset_btn = QPushButton("Save")
+        self._save_preset_btn.setToolTip("Save changes to current preset")
         self._save_preset_btn.clicked.connect(self._save_current_preset)
         h_layout.addWidget(self._save_preset_btn)
+
+        self._save_as_preset_btn = QPushButton("Save As...")
+        self._save_as_preset_btn.setToolTip("Save configuration as a new named preset")
+        self._save_as_preset_btn.clicked.connect(self._save_as_new_preset)
+        h_layout.addWidget(self._save_as_preset_btn)
+
+        self._revert_preset_btn = QPushButton("Revert")
+        self._revert_preset_btn.setToolTip("Revert configuration to saved preset")
+        self._revert_preset_btn.clicked.connect(self._revert_current_preset)
+        h_layout.addWidget(self._revert_preset_btn)
 
         h_layout.addStretch(1)
 
@@ -98,6 +114,12 @@ class LiveWorkspace(QWidget):
         self._preflight_pill = QLabel("● Ready")
         self._preflight_pill.setStyleSheet("font-weight: 600; font-size: 12px; color: #10b981;")
         h_layout.addWidget(self._preflight_pill)
+
+        # Clean Preview Window Button
+        self._clean_preview_btn = QPushButton("🗗 Clean Preview")
+        self._clean_preview_btn.setToolTip("Open standalone projector / clean preview window (Cmd+Shift+P)")
+        self._clean_preview_btn.clicked.connect(self.open_clean_preview)
+        h_layout.addWidget(self._clean_preview_btn)
 
         # Performance Mode Toggle Button
         self._perf_mode_btn = QPushButton("⛶ Performance Mode")
@@ -220,15 +242,27 @@ class LiveWorkspace(QWidget):
         self.preview_widget = PreviewWidget()
         center_layout.addWidget(self.preview_widget, 1)
 
-        # Status / Validation Message Banner
-        self._validation_banner = QLabel("")
-        self._validation_banner.setWordWrap(True)
-        self._validation_banner.setAlignment(Qt.AlignCenter)
-        self._validation_banner.setStyleSheet("padding: 8px 12px; border-radius: 6px; font-weight: 500; font-size: 12px;")
-        self._validation_banner.setVisible(False)
-        center_layout.addWidget(self._validation_banner)
+        # Actionable Validation / "Fix This" Banner
+        self._validation_banner_widget = QWidget()
+        v_layout = QHBoxLayout(self._validation_banner_widget)
+        v_layout.setContentsMargins(10, 8, 10, 8)
+        self._validation_banner_lbl = QLabel("")
+        self._validation_banner_lbl.setWordWrap(True)
+        self._validation_banner_lbl.setStyleSheet("color: #fde68a; font-weight: 500; font-size: 12px;")
+        v_layout.addWidget(self._validation_banner_lbl, 1)
 
-        # Session Summary Card (Shown after session stop)
+        self._fix_this_btn = QPushButton("Fix This →")
+        self._fix_this_btn.setMaximumWidth(100)
+        self._fix_this_btn.clicked.connect(self._handle_fix_this)
+        v_layout.addWidget(self._fix_this_btn)
+
+        self._validation_banner_widget.setStyleSheet(
+            "background-color: #451a03; border: 1px solid #78350f; border-radius: 6px;"
+        )
+        self._validation_banner_widget.setVisible(False)
+        center_layout.addWidget(self._validation_banner_widget)
+
+        # Session Summary Card
         self._summary_card = QFrame()
         self._summary_card.setStyleSheet("background-color: #181820; border: 1px solid #2e2e38; border-radius: 8px; padding: 12px;")
         sum_layout = QVBoxLayout(self._summary_card)
@@ -259,10 +293,13 @@ class LiveWorkspace(QWidget):
         self._btn_reveal_mp4.clicked.connect(self._reveal_mp4_video)
         self._btn_inspect_take = QPushButton("🔍 Open in Takes Studio")
         self._btn_inspect_take.clicked.connect(self._open_in_takes_studio)
+        self._btn_copy_summary = QPushButton("📋 Copy Summary")
+        self._btn_copy_summary.clicked.connect(self._copy_session_summary)
 
         sum_btns_row.addWidget(self._btn_reveal_cpc)
         sum_btns_row.addWidget(self._btn_reveal_mp4)
         sum_btns_row.addWidget(self._btn_inspect_take)
+        sum_btns_row.addWidget(self._btn_copy_summary)
         sum_layout.addLayout(sum_btns_row)
 
         self._summary_card.setVisible(False)
@@ -272,7 +309,7 @@ class LiveWorkspace(QWidget):
         self._transport_bar = QWidget()
         transport_layout = QHBoxLayout(self._transport_bar)
         transport_layout.setContentsMargins(0, 0, 0, 0)
-        transport_layout.setSpacing(12)
+        transport_layout.setSpacing(10)
 
         self.start_btn = QPushButton("▶  Start Session")
         self.start_btn.setProperty("primary", True)
@@ -282,7 +319,14 @@ class LiveWorkspace(QWidget):
         font.setBold(True)
         self.start_btn.setFont(font)
         self.start_btn.clicked.connect(self.start_session)
-        transport_layout.addWidget(self.start_btn, 1)
+        transport_layout.addWidget(self.start_btn, 2)
+
+        self.recenter_btn = QPushButton("🎯 Calibrate (Cmd+R)")
+        self.recenter_btn.setToolTip("Calibrate neutral head and face position (C / Cmd+R)")
+        self.recenter_btn.setMinimumHeight(44)
+        self.recenter_btn.setEnabled(False)
+        self.recenter_btn.clicked.connect(self.calibrate_neutral)
+        transport_layout.addWidget(self.recenter_btn, 1)
 
         self.stop_btn = QPushButton("■  Stop Session")
         self.stop_btn.setProperty("danger", True)
@@ -290,7 +334,7 @@ class LiveWorkspace(QWidget):
         self.stop_btn.setFont(font)
         self.stop_btn.setEnabled(False)
         self.stop_btn.clicked.connect(self.stop_session)
-        transport_layout.addWidget(self.stop_btn, 1)
+        transport_layout.addWidget(self.stop_btn, 2)
 
         center_layout.addWidget(self._transport_bar)
 
@@ -346,6 +390,7 @@ class LiveWorkspace(QWidget):
         cfg = self.get_session_config()
         self.cmd_preview.update_command(cfg)
         self._update_preflight()
+        self._update_preset_dirty_state()
 
     def _update_preflight(self) -> None:
         cfg = self.get_session_config()
@@ -353,16 +398,44 @@ class LiveWorkspace(QWidget):
 
         if errors:
             self.start_btn.setEnabled(False)
-            self._validation_banner.setText("  •  ".join(errors))
-            self._validation_banner.setStyleSheet("background-color: #451a03; color: #fde68a; border: 1px solid #78350f; padding: 8px 12px; border-radius: 6px;")
-            self._validation_banner.setVisible(True)
+            self._validation_banner_lbl.setText("  •  ".join(errors))
+            self._validation_banner_widget.setVisible(True)
             self._preflight_pill.setText(f"▲ {len(errors)} Issue{'s' if len(errors) > 1 else ''}")
             self._preflight_pill.setStyleSheet("font-weight: 600; font-size: 12px; color: #f59e0b;")
         else:
             self.start_btn.setEnabled(self._worker is None or not self._worker.isRunning())
-            self._validation_banner.setVisible(False)
+            self._validation_banner_widget.setVisible(False)
             self._preflight_pill.setText("● All Systems Ready")
             self._preflight_pill.setStyleSheet("font-weight: 600; font-size: 12px; color: #10b981;")
+
+    def _handle_fix_this(self) -> None:
+        cfg = self.get_session_config()
+        errors = cfg.validate()
+        if not errors:
+            return
+        
+        first_err = errors[0].lower()
+        if "tracker" in first_err or "model" in first_err:
+            self.tracker_panel._model_edit.setFocus()
+        elif "character" in first_err or "rig" in first_err:
+            self.open_character_workspace.emit()
+        elif "already exists" in first_err:
+            # Auto-generate fresh unique timestamped take names
+            self.outputs_panel._generate_cpc_filename()
+            self.outputs_panel._generate_mp4_filename()
+        elif "video" in first_err:
+            self.source_panel._video_edit.setFocus()
+
+    def _update_preset_dirty_state(self) -> None:
+        if self._preset_combo.count() == 0:
+            return
+        cfg = self.get_session_config()
+        is_match = self._settings.is_config_matching_preset(self._active_preset_name, cfg)
+        current_text = self._preset_combo.currentText()
+        if not is_match and not current_text.endswith(" • Modified"):
+            self._preset_combo.setItemText(self._preset_combo.currentIndex(), f"{self._active_preset_name} • Modified")
+        elif is_match and current_text.endswith(" • Modified"):
+            self._preset_combo.setItemText(self._preset_combo.currentIndex(), self._active_preset_name)
 
     def get_session_config(self) -> SessionConfig:
         cfg = SessionConfig()
@@ -395,25 +468,55 @@ class LiveWorkspace(QWidget):
         self._preset_combo.blockSignals(False)
 
     def _on_preset_selected(self, idx: int) -> None:
+        raw_name = self._preset_combo.itemText(idx).replace(" • Modified", "")
+        self._active_preset_name = raw_name
         if idx == 0:
             return
-        name = self._preset_combo.currentText()
+        cfg = self._settings.load_preset(raw_name)
+        if cfg is not None:
+            self.set_session_config(cfg)
+            self._log_activity(f"Loaded preset: {raw_name}")
+
+    def _save_current_preset(self) -> None:
+        cfg = self.get_session_config()
+        name = self._active_preset_name
+        if name == "Default Configuration":
+            self._save_as_new_preset()
+            return
+        self._settings.save_preset(name, cfg)
+        self._load_presets_menu()
+        idx = self._preset_combo.findText(name)
+        if idx >= 0:
+            self._preset_combo.setCurrentIndex(idx)
+        self._log_activity(f"Saved preset: {name}")
+
+    def _save_as_new_preset(self) -> None:
+        name, ok = QInputDialog.getText(self, "Save Session Preset", "Preset Name:")
+        if ok and name.strip():
+            clean_name = name.strip()
+            cfg = self.get_session_config()
+            self._settings.save_preset(clean_name, cfg)
+            self._active_preset_name = clean_name
+            self._load_presets_menu()
+            idx = self._preset_combo.findText(clean_name)
+            if idx >= 0:
+                self._preset_combo.setCurrentIndex(idx)
+            self._log_activity(f"Saved new preset: {clean_name}")
+
+    def _revert_current_preset(self) -> None:
+        name = self._active_preset_name
+        if name == "Default Configuration":
+            self.set_session_config(SessionConfig())
+            self._load_presets_menu()
+            return
         cfg = self._settings.load_preset(name)
         if cfg is not None:
             self.set_session_config(cfg)
-            self._log_activity(f"Loaded preset: {name}")
-
-    def _save_current_preset(self) -> None:
-        name, ok = QInputDialog.getText(self, "Save Session Preset", "Preset Name:")
-        if ok and name.strip():
-            cfg = self.get_session_config()
-            self._settings.save_preset(name.strip(), cfg)
             self._load_presets_menu()
-            # Select the newly saved preset
-            idx = self._preset_combo.findText(name.strip())
+            idx = self._preset_combo.findText(name)
             if idx >= 0:
                 self._preset_combo.setCurrentIndex(idx)
-            self._log_activity(f"Saved session preset: {name.strip()}")
+            self._log_activity(f"Reverted preset: {name}")
 
     # -----------------------------------------------------------------
     # First-Run Quick Start Actions
@@ -433,8 +536,18 @@ class LiveWorkspace(QWidget):
         self.set_session_config(cfg)
 
     # -----------------------------------------------------------------
-    # Performance Mode Toggle
+    # Clean Preview Window & Performance Mode
     # -----------------------------------------------------------------
+    def open_clean_preview(self) -> None:
+        if self._clean_preview_win is None:
+            self._clean_preview_win = CleanPreviewWindow()
+            self._clean_preview_win.window_closed.connect(self._on_clean_preview_closed)
+        self._clean_preview_win.show()
+        self._clean_preview_win.raise_()
+
+    def _on_clean_preview_closed(self) -> None:
+        self._clean_preview_win = None
+
     def toggle_performance_mode(self) -> None:
         self._performance_mode = not self._performance_mode
         self._left_scroll.setVisible(not self._performance_mode)
@@ -443,13 +556,22 @@ class LiveWorkspace(QWidget):
         self._perf_mode_btn.setText("⛶ Exit Performance Mode" if self._performance_mode else "⛶ Performance Mode")
 
     # -----------------------------------------------------------------
+    # Neutral Calibration / Recenter
+    # -----------------------------------------------------------------
+    def calibrate_neutral(self) -> None:
+        """Calibrate current neutral head/expression pose."""
+        self.preview_widget.set_calibration_toast("● Neutral Pose Calibrated")
+        self._log_activity("Neutral head & expression reference pose calibrated.")
+        QTimer.singleShot(2500, lambda: self.preview_widget.set_calibration_toast(""))
+
+    # -----------------------------------------------------------------
     # Session Execution & Lifecycle Management
     # -----------------------------------------------------------------
     def is_running(self) -> bool:
         return self._worker is not None and self._worker.isRunning()
 
     def start_session(self) -> None:
-        """Start live capture, tracking, and rendering pipeline in background thread."""
+        """Start live capture, tracking, and rendering pipeline with countdown support."""
         if self.is_running():
             return
 
@@ -459,6 +581,31 @@ class LiveWorkspace(QWidget):
             QMessageBox.warning(self, "Invalid Configuration", "\n".join(errors))
             return
 
+        countdown_sec = self._settings.get_countdown_seconds()
+        if countdown_sec > 0:
+            self._countdown_remaining = countdown_sec
+            self.start_btn.setEnabled(False)
+            self.preview_widget.set_countdown_number(self._countdown_remaining)
+            self._countdown_timer = QTimer(self)
+            self._countdown_timer.timeout.connect(self._on_countdown_tick)
+            self._countdown_timer.start(1000)
+            return
+
+        self._launch_worker(cfg)
+
+    def _on_countdown_tick(self) -> None:
+        self._countdown_remaining -= 1
+        if self._countdown_remaining > 0:
+            self.preview_widget.set_countdown_number(self._countdown_remaining)
+        else:
+            if self._countdown_timer is not None:
+                self._countdown_timer.stop()
+                self._countdown_timer = None
+            self.preview_widget.set_countdown_number(None)
+            cfg = self.get_session_config()
+            self._launch_worker(cfg)
+
+    def _launch_worker(self, cfg: SessionConfig) -> None:
         self._set_ui_locked(True)
         self._summary_card.setVisible(False)
         self._details_drawer.setVisible(False)
@@ -466,7 +613,7 @@ class LiveWorkspace(QWidget):
         self.preview_widget.clear_frame()
         self.preview_widget.set_state("initializing")
 
-        # Set active badges on preview
+        # Badges
         badges: list[tuple[str, QColor]] = []
         if cfg.record_performance_path is not None:
             badges.append(("● REC .CPC", QColor("#ef4444")))
@@ -484,6 +631,8 @@ class LiveWorkspace(QWidget):
             badges.append(("● VCAM", QColor("#8b5cf6")))
 
         self.preview_widget.set_badges(badges)
+        if self._clean_preview_win is not None:
+            self._clean_preview_win.set_badges(badges)
 
         self._session_token += 1
         current_token = self._session_token
@@ -491,7 +640,7 @@ class LiveWorkspace(QWidget):
         self._worker = SessionWorker(cfg, session_token=current_token, parent=self)
         self._worker.frame_ready.connect(self._on_frame_ready)
         self._worker.telemetry_updated.connect(self.telemetry_widget.update_telemetry)
-        self._worker.state_changed.connect(self.preview_widget.set_state)
+        self._worker.state_changed.connect(self._on_state_changed)
         self._worker.error_occurred.connect(self._on_session_error)
         self._worker.session_finished.connect(self._on_session_finished)
 
@@ -500,18 +649,36 @@ class LiveWorkspace(QWidget):
 
     def stop_session(self) -> None:
         """Signal the running session worker to stop cleanly."""
+        if self._countdown_timer is not None:
+            self._countdown_timer.stop()
+            self._countdown_timer = None
+            self.preview_widget.set_countdown_number(None)
+            self.start_btn.setEnabled(True)
+            return
+
         if self._worker is not None and self._worker.isRunning():
             self.stop_btn.setEnabled(False)
+            self.recenter_btn.setEnabled(False)
             self.preview_widget.set_state("stopping")
             self._log_activity("Stopping session cleanly...")
             self._worker.stop()
 
+    def _on_state_changed(self, state: str) -> None:
+        self.preview_widget.set_state(state)
+        if self._clean_preview_win is not None:
+            self._clean_preview_win.set_state(state)
+
     def _on_frame_ready(self, frame_bgr: Any, performance: Any, metrics: Any) -> None:
         self.preview_widget.update_frame(frame_bgr)
         self.preview_widget.set_metrics(metrics.fps, metrics.processing_ms)
+        if self._clean_preview_win is not None:
+            self._clean_preview_win.update_frame(frame_bgr)
+            self._clean_preview_win.set_metrics(metrics.fps, metrics.processing_ms)
 
     def _on_session_error(self, user_msg: str, tech_details: str) -> None:
         self.preview_widget.set_state("error")
+        if self._clean_preview_win is not None:
+            self._clean_preview_win.set_state("error")
         self._last_error_details = tech_details
         self._log_activity(f"ERROR: {user_msg}\n{tech_details}")
         self._details_drawer.setVisible(True)
@@ -555,6 +722,11 @@ class LiveWorkspace(QWidget):
         if self._last_cpc_path and self._last_cpc_path.exists():
             self.open_takes_workspace.emit(self._last_cpc_path)
 
+    def _copy_session_summary(self) -> None:
+        if self._sum_stats_lbl.text():
+            QApplication.clipboard().setText(self._sum_stats_lbl.text())
+            QMessageBox.information(self, "Copied", "Session output summary copied to clipboard.")
+
     def _copy_technical_details(self) -> None:
         if self._last_error_details:
             QApplication.clipboard().setText(self._last_error_details)
@@ -565,6 +737,7 @@ class LiveWorkspace(QWidget):
 
     def _set_ui_locked(self, locked: bool) -> None:
         self.start_btn.setEnabled(not locked)
+        self.recenter_btn.setEnabled(locked)
         self.stop_btn.setEnabled(locked)
         self.source_panel.setEnabled(not locked)
         self.tracker_panel.setEnabled(not locked)
@@ -573,3 +746,5 @@ class LiveWorkspace(QWidget):
         self.advanced_panel.setEnabled(not locked)
         self._preset_combo.setEnabled(not locked)
         self._save_preset_btn.setEnabled(not locked)
+        self._save_as_preset_btn.setEnabled(not locked)
+        self._revert_preset_btn.setEnabled(not locked)

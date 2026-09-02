@@ -8,7 +8,7 @@ from PySide6.QtWidgets import QSizePolicy, QWidget
 
 
 class PreviewWidget(QWidget):
-    """High-performance aspect-preserving video preview widget with backpressure handling and HUD overlays."""
+    """High-performance aspect-preserving video preview widget with backpressure handling, countdown, and HUD overlays."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -22,6 +22,8 @@ class PreviewWidget(QWidget):
         self._hint_text: str = "Ready to capture — Configure source & click Start"
         self._performance_mode: bool = False
         self._frame_count: int = 0
+        self._countdown_count: int | None = None
+        self._calibrated_toast_text: str = ""
 
     def set_performance_mode(self, enabled: bool) -> None:
         self._performance_mode = enabled
@@ -33,6 +35,14 @@ class PreviewWidget(QWidget):
 
     def set_badges(self, badges: list[tuple[str, QColor]]) -> None:
         self._badges = badges
+        self.update()
+
+    def set_countdown_number(self, count: int | None) -> None:
+        self._countdown_count = count
+        self.update()
+
+    def set_calibration_toast(self, text: str) -> None:
+        self._calibrated_toast_text = text
         self.update()
 
     def set_metrics(self, fps: float, latency_ms: float) -> None:
@@ -57,6 +67,8 @@ class PreviewWidget(QWidget):
         self._fps_text = ""
         self._latency_text = ""
         self._frame_count = 0
+        self._countdown_count = None
+        self._calibrated_toast_text = ""
         self.update()
 
     def paintEvent(self, event) -> None:
@@ -120,7 +132,7 @@ class PreviewWidget(QWidget):
             state_label = "● INITIALIZING"
             state_color = QColor("#38bdf8")
         elif self._state == "tracking":
-            state_label = "● TRACKING"
+            state_label = "● TRACKING (478 pts)"
             state_color = QColor("#10b981")
         elif self._state == "tracking_lost":
             state_label = "▲ TRACKING LOST"
@@ -136,6 +148,9 @@ class PreviewWidget(QWidget):
             state_color = QColor("#ef4444")
 
         all_badges = [(state_label, state_color)] + self._badges
+
+        if self._calibrated_toast_text:
+            all_badges.append((self._calibrated_toast_text, QColor("#10b981")))
 
         font = QFont(painter.font())
         font.setPointSize(10)
@@ -166,6 +181,30 @@ class PreviewWidget(QWidget):
                 text,
             )
             badge_x += bg_rect.width() + 8
+
+        # -------------------------------------------------------------
+        # Countdown Overlay (Center Canvas)
+        # -------------------------------------------------------------
+        if self._countdown_count is not None and self._countdown_count > 0:
+            cd_font = QFont(painter.font())
+            cd_font.setPointSize(72)
+            cd_font.setBold(True)
+            painter.setFont(cd_font)
+
+            cd_text = str(self._countdown_count)
+            cd_rect = painter.fontMetrics().boundingRect(cd_text)
+
+            circle_size = max(cd_rect.width(), cd_rect.height()) + 80
+            cx = (self.width() - circle_size) / 2
+            cy = (self.height() - circle_size) / 2
+            circle_rect = QRectF(cx, cy, circle_size, circle_size)
+
+            painter.setPen(QPen(QColor("#3b82f6"), 4))
+            painter.setBrush(QColor(10, 10, 15, 200))
+            painter.drawEllipse(circle_rect)
+
+            painter.setPen(QColor("#ffffff"))
+            painter.drawText(circle_rect, Qt.AlignCenter, cd_text)
 
         # -------------------------------------------------------------
         # Metrics HUD (Bottom-Right)

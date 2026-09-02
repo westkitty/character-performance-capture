@@ -1,47 +1,56 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 
-from PySide6.QtGui import QDesktopServices, QFont
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QDesktopServices, QDragEnterEvent, QDropEvent, QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFileDialog,
     QFrame,
     QGridLayout,
     QGroupBox,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QLineEdit,
     QMessageBox,
     QPushButton,
+    QTableWidget,
+    QTableWidgetItem,
+    QTabWidget,
     QTextEdit,
     QVBoxLayout,
     QWidget,
 )
 
 from cpc.recording import read_capture
+from cpc.ui.settings import AppSettings
 
 
 class TakesWorkspace(QWidget):
-    """Graphical Capture Inspector for .cpc and partial takes."""
+    """Graphical Capture Inspector for .cpc and partial takes with batch inspection, drag/drop, and recents."""
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self.setAcceptDrops(True)
         self._current_take_path: Path | None = None
+        self._settings = AppSettings()
         self._init_ui()
+        self._load_recents()
 
     def _init_ui(self) -> None:
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(16, 16, 16, 16)
-        layout.setSpacing(14)
+        layout.setContentsMargins(14, 14, 14, 14)
+        layout.setSpacing(12)
 
         # Header banner
         header_banner = QFrame()
-        header_banner.setStyleSheet("background-color: #16161d; border: 1px solid #23232c; border-radius: 8px; padding: 12px;")
+        header_banner.setStyleSheet("background-color: #16161d; border: 1px solid #23232c; border-radius: 8px; padding: 10px;")
         h_layout = QVBoxLayout(header_banner)
-        h_layout.setContentsMargins(8, 8, 8, 8)
+        h_layout.setContentsMargins(8, 6, 8, 6)
         h_layout.setSpacing(4)
 
         title = QLabel("Performance Take Inspector (.cpc)")
@@ -61,10 +70,17 @@ class TakesWorkspace(QWidget):
 
         layout.addWidget(header_banner)
 
-        # File picker bar
+        # Recents & Single/Batch file picker bar
         picker_bar = QHBoxLayout()
+        picker_bar.setSpacing(8)
+
+        self._recents_combo = QComboBox()
+        self._recents_combo.setMinimumWidth(180)
+        self._recents_combo.currentIndexChanged.connect(self._on_recent_selected)
+        picker_bar.addWidget(self._recents_combo)
+
         self._path_edit = QLineEdit()
-        self._path_edit.setPlaceholderText("Select .cpc or .partial capture file to inspect...")
+        self._path_edit.setPlaceholderText("Select or drop .cpc / .partial file...")
         self._path_edit.returnPressed.connect(self._inspect_current_path)
         picker_bar.addWidget(self._path_edit, 1)
 
@@ -73,11 +89,21 @@ class TakesWorkspace(QWidget):
         self._browse_btn.clicked.connect(self._browse_take)
         picker_bar.addWidget(self._browse_btn)
 
-        self._inspect_btn = QPushButton("Inspect")
-        self._inspect_btn.clicked.connect(self._inspect_current_path)
-        picker_bar.addWidget(self._inspect_btn)
+        self._browse_batch_btn = QPushButton("Batch Inspect...")
+        self._browse_batch_btn.setToolTip("Select multiple .cpc takes for batch inspection")
+        self._browse_batch_btn.clicked.connect(self._browse_batch_takes)
+        picker_bar.addWidget(self._browse_batch_btn)
 
         layout.addLayout(picker_bar)
+
+        # Tabs: Single Take Inspection vs Batch Table
+        self._tabs = QTabWidget()
+
+        # Tab 1: Single Take Details
+        single_tab = QWidget()
+        s_layout = QVBoxLayout(single_tab)
+        s_layout.setContentsMargins(0, 8, 0, 0)
+        s_layout.setSpacing(10)
 
         # Inspection results grid
         results_group = QGroupBox("Capture Metadata && Integrity")
@@ -94,9 +120,9 @@ class TakesWorkspace(QWidget):
         self._lbl_created = self._add_field(grid, 3, 0, "Created Timestamp (UTC):", "--")
         self._lbl_filesize = self._add_field(grid, 3, 1, "File Size:", "--")
 
-        layout.addWidget(results_group)
+        s_layout.addWidget(results_group)
 
-        # Raw Header / Metadata Viewer
+        # Report viewer
         viewer_group = QGroupBox("Inspection Report (JSON)")
         v_layout = QVBoxLayout(viewer_group)
         v_layout.setContentsMargins(10, 14, 10, 10)
@@ -107,16 +133,59 @@ class TakesWorkspace(QWidget):
         v_layout.addWidget(self._json_view)
 
         btn_row = QHBoxLayout()
-        self._copy_btn = QPushButton("Copy Report JSON")
+        self._copy_btn = QPushButton("Copy JSON")
         self._copy_btn.clicked.connect(self._copy_report_json)
+        self._export_json_btn = QPushButton("Export JSON...")
+        self._export_json_btn.clicked.connect(self._export_report_json)
         self._reveal_btn = QPushButton("Reveal in Finder")
         self._reveal_btn.clicked.connect(self._reveal_in_finder)
         btn_row.addWidget(self._copy_btn)
+        btn_row.addWidget(self._export_json_btn)
         btn_row.addWidget(self._reveal_btn)
         btn_row.addStretch(1)
         v_layout.addLayout(btn_row)
 
-        layout.addWidget(viewer_group, 1)
+        s_layout.addWidget(viewer_group, 1)
+        self._tabs.addTab(single_tab, "Take Details")
+
+        # Tab 2: Batch Multi-Take Inspector Table
+        batch_tab = QWidget()
+        b_layout = QVBoxLayout(batch_tab)
+        b_layout.setContentsMargins(0, 8, 0, 0)
+        b_layout.setSpacing(8)
+
+        self._batch_table = QTableWidget()
+        self._batch_table.setColumnCount(6)
+        self._batch_table.setHorizontalHeaderLabels([
+            "File Name",
+            "Status",
+            "Frames",
+            "Duration (s)",
+            "FPS",
+            "Tracker",
+        ])
+        self._batch_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
+        self._batch_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        b_layout.addWidget(self._batch_table)
+
+        self._tabs.addTab(batch_tab, "Batch Inspection")
+        layout.addWidget(self._tabs, 1)
+
+    def _load_recents(self) -> None:
+        self._recents_combo.blockSignals(True)
+        self._recents_combo.clear()
+        self._recents_combo.addItem("Select Recent Take...", "")
+        recents = self._settings.get_recent_items("takes")
+        for r in recents:
+            self._recents_combo.addItem(Path(r).name, r)
+        self._recents_combo.blockSignals(False)
+
+    def _on_recent_selected(self, idx: int) -> None:
+        if idx <= 0:
+            return
+        path_str = self._recents_combo.itemData(idx)
+        if path_str and Path(path_str).is_file():
+            self.inspect_path(Path(path_str))
 
     def _add_field(self, layout: QGridLayout, row: int, col: int, label: str, default: str) -> QLabel:
         col_idx = col * 2
@@ -136,12 +205,66 @@ class TakesWorkspace(QWidget):
         file_path, _ = QFileDialog.getOpenFileName(
             self,
             "Open Performance Capture Take",
-            os.path.expanduser("~"),
+            self._settings.get_last_directory(),
             "CPC Takes (*.cpc *.partial);;All Files (*)",
         )
         if file_path:
-            self._path_edit.setText(file_path)
-            self._inspect_file(Path(file_path))
+            self._settings.set_last_directory(file_path)
+            self._settings.add_recent_item("takes", file_path)
+            self.inspect_path(Path(file_path))
+            self._load_recents()
+
+    def _browse_batch_takes(self) -> None:
+        file_paths, _ = QFileDialog.getOpenFileNames(
+            self,
+            "Select Takes for Batch Inspection",
+            self._settings.get_last_directory(),
+            "CPC Takes (*.cpc *.partial);;All Files (*)",
+        )
+        if file_paths:
+            self._batch_inspect([Path(p) for p in file_paths])
+            self._tabs.setCurrentIndex(1)
+
+    def _batch_inspect(self, paths: list[Path]) -> None:
+        self._batch_table.setRowCount(0)
+        for i, p in enumerate(paths):
+            self._batch_table.insertRow(i)
+            self._batch_table.setItem(i, 0, QTableWidgetItem(p.name))
+            try:
+                cap = read_capture(p)
+                status = "Complete" if cap.complete else "Partial"
+                fps = (cap.frame_count / cap.duration_s) if cap.duration_s > 0 else 0.0
+                
+                item_stat = QTableWidgetItem(status)
+                item_stat.setForeground(Qt.green if cap.complete else Qt.yellow)
+                self._batch_table.setItem(i, 1, item_stat)
+                self._batch_table.setItem(i, 2, QTableWidgetItem(f"{cap.frame_count:,}"))
+                self._batch_table.setItem(i, 3, QTableWidgetItem(f"{cap.duration_s:.2f}"))
+                self._batch_table.setItem(i, 4, QTableWidgetItem(f"{fps:.1f}"))
+                self._batch_table.setItem(i, 5, QTableWidgetItem(str(cap.header.tracker)))
+            except (ValueError, RuntimeError, OSError, KeyError) as exc:
+                item_err = QTableWidgetItem(f"Error: {exc}")
+                item_err.setForeground(Qt.red)
+                self._batch_table.setItem(i, 1, item_err)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                p = Path(url.toLocalFile())
+                if p.suffix.lower() in {".cpc", ".partial"}:
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        for url in event.mimeData().urls():
+            p = Path(url.toLocalFile())
+            if p.suffix.lower() in {".cpc", ".partial"}:
+                self._settings.add_recent_item("takes", p)
+                self.inspect_path(p)
+                self._load_recents()
+                event.acceptProposedAction()
+                return
 
     def _inspect_current_path(self) -> None:
         path_str = self._path_edit.text().strip()
@@ -195,12 +318,27 @@ class TakesWorkspace(QWidget):
             "file_size_bytes": path.stat().st_size,
         }
         self._json_view.setText(json.dumps(report_dict, indent=2))
+        self._tabs.setCurrentIndex(0)
 
     def _copy_report_json(self) -> None:
         text = self._json_view.toPlainText().strip()
         if text:
             QApplication.clipboard().setText(text)
             QMessageBox.information(self, "Copied", "Report JSON copied to clipboard.")
+
+    def _export_report_json(self) -> None:
+        text = self._json_view.toPlainText().strip()
+        if not text:
+            return
+        dest, _ = QFileDialog.getSaveFileName(
+            self,
+            "Export Take Metadata JSON",
+            self._settings.get_last_directory(),
+            "JSON Files (*.json);;All Files (*)",
+        )
+        if dest:
+            Path(dest).write_text(text, encoding="utf-8")
+            QMessageBox.information(self, "Export Complete", f"Metadata saved to:\n{dest}")
 
     def _reveal_in_finder(self) -> None:
         if self._current_take_path and self._current_take_path.is_file():

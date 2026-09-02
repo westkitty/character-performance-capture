@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path
 
 import cv2
 import numpy as np
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtGui import QFont, QImage, QPixmap
+from PySide6.QtGui import QDesktopServices, QDragEnterEvent, QDropEvent, QFont, QImage, QPixmap
 from PySide6.QtWidgets import (
     QCheckBox,
     QComboBox,
@@ -31,17 +30,19 @@ from cpc.ui.worker import DeriveRigWorker
 
 
 class CharacterWorkspace(QWidget):
-    """Character Reference Artwork & Rig Derivation Studio."""
+    """Character Reference Artwork & Rig Derivation Studio with recents, favorites, and drag/drop."""
 
     character_selected = Signal(Path, Path)  # (character_image_path, rig_sidecar_path)
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
+        self.setAcceptDrops(True)
         self._derive_worker: DeriveRigWorker | None = None
         self._current_rig: CharacterRig | None = None
         self._character_img: np.ndarray | None = None
         self._settings = AppSettings()
         self._init_ui()
+        self._load_recents()
 
     def _init_ui(self) -> None:
         main_layout = QHBoxLayout(self)
@@ -57,7 +58,21 @@ class CharacterWorkspace(QWidget):
         left_widget = QWidget()
         left_layout = QVBoxLayout(left_widget)
         left_layout.setContentsMargins(0, 0, 0, 0)
-        left_layout.setSpacing(12)
+        left_layout.setSpacing(10)
+
+        # Recents & Favorites bar
+        recents_bar = QHBoxLayout()
+        recents_bar.addWidget(QLabel("Recent:"))
+        self._recents_combo = QComboBox()
+        self._recents_combo.currentIndexChanged.connect(self._on_recent_selected)
+        recents_bar.addWidget(self._recents_combo, 1)
+
+        self._fav_btn = QPushButton("☆")
+        self._fav_btn.setMaximumWidth(32)
+        self._fav_btn.setToolTip("Bookmark character as favorite")
+        self._fav_btn.clicked.connect(self._toggle_favorite)
+        recents_bar.addWidget(self._fav_btn)
+        left_layout.addLayout(recents_bar)
 
         config_group = QGroupBox("Character && Rig Setup")
         grid = QGridLayout(config_group)
@@ -67,21 +82,27 @@ class CharacterWorkspace(QWidget):
         # 1. Character Image
         grid.addWidget(QLabel("1. Character Image:"), 0, 0)
         self._char_edit = QLineEdit()
-        self._char_edit.setPlaceholderText("Select character reference PNG/JPG...")
+        self._char_edit.setPlaceholderText("Select or drop character PNG/JPG...")
         self._char_edit.textChanged.connect(self._on_character_path_changed)
 
         self._browse_char_btn = QPushButton("Browse...")
         self._browse_char_btn.clicked.connect(self._browse_character)
 
+        self._reveal_char_btn = QPushButton("📁")
+        self._reveal_char_btn.setMaximumWidth(32)
+        self._reveal_char_btn.setToolTip("Reveal in Finder")
+        self._reveal_char_btn.clicked.connect(self._reveal_character)
+
         char_row = QHBoxLayout()
         char_row.addWidget(self._char_edit, 1)
         char_row.addWidget(self._browse_char_btn)
+        char_row.addWidget(self._reveal_char_btn)
         grid.addLayout(char_row, 0, 1)
 
         # 2. Tracker Model
         grid.addWidget(QLabel("2. Tracker Model:"), 1, 0)
         self._model_edit = QLineEdit()
-        self._model_edit.setPlaceholderText("Path to face_landmarker.task...")
+        self._model_edit.setPlaceholderText("Path or drop face_landmarker.task...")
 
         self._browse_model_btn = QPushButton("Browse...")
         self._browse_model_btn.clicked.connect(self._browse_model)
@@ -108,9 +129,15 @@ class CharacterWorkspace(QWidget):
         self._browse_rig_btn = QPushButton("Browse...")
         self._browse_rig_btn.clicked.connect(self._browse_rig)
 
+        self._reveal_rig_btn = QPushButton("📁")
+        self._reveal_rig_btn.setMaximumWidth(32)
+        self._reveal_rig_btn.setToolTip("Reveal rig sidecar in Finder")
+        self._reveal_rig_btn.clicked.connect(self._reveal_rig)
+
         rig_row = QHBoxLayout()
         rig_row.addWidget(self._rig_edit, 1)
         rig_row.addWidget(self._browse_rig_btn)
+        rig_row.addWidget(self._reveal_rig_btn)
         grid.addLayout(rig_row, 3, 1)
 
         left_layout.addWidget(config_group)
@@ -184,7 +211,7 @@ class CharacterWorkspace(QWidget):
         right_layout.addLayout(viz_toolbar)
 
         # Character Preview Canvas
-        self._preview_lbl = QLabel("No character loaded")
+        self._preview_lbl = QLabel("No character loaded — Select image or drop file here")
         self._preview_lbl.setAlignment(Qt.AlignCenter)
         self._preview_lbl.setStyleSheet("background-color: #0e0e11; border: 1px solid #22222a; border-radius: 8px; color: #71717a; font-size: 14px;")
         right_layout.addWidget(self._preview_lbl, 1)
@@ -194,6 +221,30 @@ class CharacterWorkspace(QWidget):
         splitter.setStretchFactor(0, 0)
         splitter.setStretchFactor(1, 1)
         main_layout.addWidget(splitter)
+
+    def _load_recents(self) -> None:
+        self._recents_combo.blockSignals(True)
+        self._recents_combo.clear()
+        self._recents_combo.addItem("Select Recent Character...", "")
+        recents = self._settings.get_recent_items("characters")
+        for r in recents:
+            self._recents_combo.addItem(Path(r).name, r)
+        self._recents_combo.blockSignals(False)
+
+    def _on_recent_selected(self, idx: int) -> None:
+        if idx <= 0:
+            return
+        path_str = self._recents_combo.itemData(idx)
+        if path_str and Path(path_str).is_file():
+            self._char_edit.setText(path_str)
+
+    def _toggle_favorite(self) -> None:
+        char_str = self._char_edit.text().strip()
+        if not char_str:
+            return
+        is_fav = self._settings.toggle_favorite("characters", char_str)
+        self._fav_btn.setText("★" if is_fav else "☆")
+        self._fav_btn.setStyleSheet("color: #f59e0b;" if is_fav else "")
 
     def _add_stat_row(self, grid: QGridLayout, row: int, label: str, val: str, color: str) -> QLabel:
         lbl_title = QLabel(label)
@@ -211,33 +262,75 @@ class CharacterWorkspace(QWidget):
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select Character Artwork",
-            os.path.expanduser("~"),
+            self._settings.get_last_directory(),
             "Image Files (*.png *.jpg *.jpeg *.webp);;All Files (*)",
         )
         if path:
+            self._settings.set_last_directory(path)
+            self._settings.add_recent_item("characters", path)
             self._char_edit.setText(path)
+            self._load_recents()
+
+    def _reveal_character(self) -> None:
+        char_str = self._char_edit.text().strip()
+        if char_str and Path(char_str).exists():
+            QDesktopServices.openUrl(f"file://{Path(char_str).parent.resolve()}")
+
+    def _reveal_rig(self) -> None:
+        rig_str = self._rig_edit.text().strip()
+        if rig_str and Path(rig_str).exists():
+            QDesktopServices.openUrl(f"file://{Path(rig_str).parent.resolve()}")
 
     def _browse_model(self) -> None:
         path, _ = QFileDialog.getOpenFileName(
             self,
             "Select MediaPipe Task Model",
-            os.path.expanduser("~"),
+            self._settings.get_last_directory(),
             "Task Models (*.task);;All Files (*)",
         )
         if path:
+            self._settings.set_last_directory(path)
             self._model_edit.setText(path)
 
     def _browse_rig(self) -> None:
         path, _ = QFileDialog.getSaveFileName(
             self,
             "Target Character Rig Sidecar",
-            os.path.expanduser("~"),
+            self._settings.get_last_directory(),
             "Rig Files (*.rig.json);;All Files (*)",
         )
         if path:
             if not path.endswith(".rig.json"):
                 path += ".rig.json"
+            self._settings.set_last_directory(path)
             self._rig_edit.setText(path)
+
+    def dragEnterEvent(self, event: QDragEnterEvent) -> None:
+        if event.mimeData().hasUrls():
+            for url in event.mimeData().urls():
+                p = Path(url.toLocalFile())
+                if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp", ".task", ".json"}:
+                    event.acceptProposedAction()
+                    return
+        event.ignore()
+
+    def dropEvent(self, event: QDropEvent) -> None:
+        for url in event.mimeData().urls():
+            p = Path(url.toLocalFile())
+            if p.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                self._char_edit.setText(str(p))
+                self._settings.add_recent_item("characters", p)
+                self._load_recents()
+                event.acceptProposedAction()
+                return
+            elif p.suffix.lower() == ".task":
+                self._model_edit.setText(str(p))
+                event.acceptProposedAction()
+                return
+            elif p.name.endswith(".rig.json"):
+                self._rig_edit.setText(str(p))
+                event.acceptProposedAction()
+                return
 
     def _on_character_path_changed(self) -> None:
         char_str = self._char_edit.text().strip()
@@ -247,7 +340,12 @@ class CharacterWorkspace(QWidget):
             self._current_rig = None
             self._character_img = None
             self._use_char_btn.setEnabled(False)
+            self._fav_btn.setText("☆")
             return
+
+        is_fav = self._settings.is_favorite("characters", char_str)
+        self._fav_btn.setText("★" if is_fav else "☆")
+        self._fav_btn.setStyleSheet("color: #f59e0b;" if is_fav else "")
 
         char_path = Path(char_str)
         if not char_path.is_file():
