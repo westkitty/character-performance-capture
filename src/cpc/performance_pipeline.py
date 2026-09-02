@@ -55,6 +55,8 @@ class PerformancePipeline:
             raise
 
         self._started_at = time.perf_counter()
+        self._last_frame_time = None
+        self._frame_index = 0
         self._started = True
 
     def process(
@@ -105,6 +107,8 @@ class PerformancePipeline:
         finally:
             self.tracker.close()
             self._started = False
+            self._started_at = None
+            self._last_frame_time = None
 
     def __enter__(self) -> Self:
         self.start()
