@@ -127,3 +127,88 @@ def build_calibration_profile(
         unavailable=tuple(sorted(requested - set(ranges))),
         character_id=character_id,
     )
+
+
+def apply_calibration(frame: PerformanceFrame, profile: CalibrationProfile) -> PerformanceFrame:
+    """Return renderer-facing calibrated state while preserving portable field semantics."""
+    blendshapes = dict(frame.blendshapes)
+    for name, value in tuple(blendshapes.items()):
+        channel = profile.channels.get(f"blendshape:{name}")
+        if channel is None:
+            continue
+        span = channel.maximum - channel.neutral
+        blendshapes[name] = (
+            0.0 if span <= 0 else max(0.0, min(1.0, (value - channel.neutral) / span))
+        )
+
+    head = frame.head_rotation_deg
+    if head is not None:
+        head = tuple(
+            value - profile.channels[key].neutral if key in profile.channels else value
+            for key, value in zip(("head_pitch", "head_yaw", "head_roll"), head, strict=True)
+        )
+
+    def calibrated_gaze(
+        gaze: tuple[float, float] | None,
+        prefix: str,
+    ) -> tuple[float, float] | None:
+        if gaze is None:
+            return None
+        return tuple(
+            value - profile.channels[key].neutral if key in profile.channels else value
+            for key, value in zip(
+                (f"{prefix}_x", f"{prefix}_y"),
+                gaze,
+                strict=True,
+            )
+        )
+
+    metadata = dict(frame.metadata)
+    metadata["calibration_profile"] = profile.name
+    metadata["calibration_version"] = profile.version
+    return PerformanceFrame(
+        frame_index=frame.frame_index,
+        timestamp_s=frame.timestamp_s,
+        tracked=frame.tracked,
+        tracker=frame.tracker,
+        profile=frame.profile,
+        tracking_confidence=frame.tracking_confidence,
+        blendshapes=blendshapes,
+        head_rotation_deg=head,
+        gaze_left=calibrated_gaze(frame.gaze_left, "gaze_left"),
+        gaze_right=calibrated_gaze(frame.gaze_right, "gaze_right"),
+        face_transform=frame.face_transform,
+        landmarks=frame.landmarks,
+        metadata=metadata,
+    )
+
+
+class CalibratedRenderer:
+    """Renderer wrapper that applies session calibration without mutating recorded state."""
+
+    def __init__(self, renderer, profile: CalibrationProfile | None = None) -> None:
+        self.renderer = renderer
+        self.profile = profile
+        self.name = getattr(renderer, "name", "calibrated-renderer")
+
+    def set_profile(self, profile: CalibrationProfile | None) -> None:
+        self.profile = profile
+
+    def start(self) -> None:
+        self.renderer.start()
+
+    def render(self, frame, performance: PerformanceFrame):
+        calibrated = (
+            apply_calibration(performance, self.profile)
+            if self.profile is not None and performance.tracked
+            else performance
+        )
+        return self.renderer.render(frame, calibrated)
+
+    def recenter(self) -> None:
+        recenter = getattr(self.renderer, "recenter", None)
+        if callable(recenter):
+            recenter()
+
+    def close(self) -> None:
+        self.renderer.close()

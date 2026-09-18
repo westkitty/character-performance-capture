@@ -10,7 +10,7 @@ from pathlib import Path
 import cv2
 from PySide6.QtCore import QThread, Signal
 
-from cpc.calibration import build_calibration_profile
+from cpc.calibration import CalibratedRenderer, CalibrationProfile, build_calibration_profile
 from cpc.capture import CameraInfo
 from cpc.diagnostics import probe_runtime
 from cpc.performance_pipeline import PerformancePipeline, ThreadedPerformancePipeline
@@ -109,6 +109,9 @@ class SessionWorker(QThread):
                     status = f"saved:{self.config.calibration_profile_path}"
                 else:
                     status = "session-only"
+                renderer = getattr(self, "_active_renderer", None)
+                if renderer is not None and hasattr(renderer, "set_profile"):
+                    renderer.set_profile(profile)
                 self.calibration_updated.emit(profile.to_dict(), status)
                 self._calibration_frames = None
 
@@ -169,7 +172,13 @@ class SessionWorker(QThread):
 
         try:
             tracker = build_tracker_from_config(self.config)
-            renderer = build_renderer_from_config(self.config)
+            renderer_base = build_renderer_from_config(self.config)
+            calibration = (
+                CalibrationProfile.load(self.config.calibration_profile_path)
+                if self.config.calibration_profile_path is not None
+                else None
+            )
+            renderer = CalibratedRenderer(renderer_base, calibration)
             source = build_frame_source_from_config(self.config)
             if self.config.performance_pipeline_mode == "threaded":
                 pipeline = ThreadedPerformancePipeline(
@@ -225,6 +234,7 @@ class SessionWorker(QThread):
                     runtime.start()
                     stack.callback(runtime.close)
 
+                self._active_renderer = renderer
                 self.state_changed.emit("running")
                 session_start = time.perf_counter()
                 fps_state = {
@@ -255,6 +265,8 @@ class SessionWorker(QThread):
                                 session_start=session_start,
                                 fps_state=fps_state,
                             )
+                        if hasattr(renderer, "set_profile"):
+                            renderer.set_profile(None)
                         if hasattr(renderer, "recenter"):
                             renderer.recenter()
                         self._calibration_frames = []
@@ -329,6 +341,7 @@ class SessionWorker(QThread):
                 )
                 self.state_changed.emit("error")
         finally:
+            self._active_renderer = None
             self.state_changed.emit("stopping")
             if writer_holder[0] is not None:
                 writer_holder[0].release()
