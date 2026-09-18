@@ -7,7 +7,7 @@
   "project_name": "Character Performance Capture",
   "project_root": "westkitty/character-performance-capture",
   "artifact_path": null,
-  "state_revision": 19,
+  "state_revision": 20,
   "last_updated": "2026-09-18",
   "current_baseline": {
     "identity": "CPC 1.1.0 on main incorporating Stage-First Total UX Rearchitecture, Curated Model Library, Guided Character Setup, and hermetic test isolation via PR #7 (squash merge 034a9aa6b571cb3e7805ad7e716a99108688cdd7); 134 regression tests; ruleset 22061363 active.",
@@ -189,23 +189,30 @@ Core and previously validated physical routes remain verified. The 134-test suit
 | VER-028 | Curated Model Library & Guided Character Setup | verified | 123 passing automated tests; 100% clean Ruff; complete 6-stage journey verified with high-res captures | pytest + Ruff + visual captures | code rev 16 | 2026-09-02 | Model registry / Character setup change |
 | VER-029 | Stage-First CPC Studio UX Rearchitecture & Hermetic CI Repair | verified | 134 passing automated tests; 100% clean Ruff; hermetic test environment isolation; 5 workspaces rearchitected around dominant stage and contextual inspector | pytest + Ruff + visual captures + CI | code rev 17 | 2026-09-02 | UI architecture & hermetic test repair |
 | VER-030 | Post-Merge Main Integration Verification | verified | PR #7 merged into main (034a9aa6b571cb3e7805ad7e716a99108688cdd7); post-merge CI run 33656804501 passed all 5 lanes (Ubuntu, macOS, MediaPipe smoke, UI smoke, required-ci) with 134 tests | GitHub Actions + PR #7 | code 034a9aa / rev 18 | 2026-09-02 | PR merge / main push |
-| VER-031 | Performance Studio expansion candidate | locally verified / integration pending | 149 tests and Ruff pass on `feat/performance-studio-expansion`; focused threaded/calibration/runtime/take/UI regressions pass; `.cpc` format remains v1 | local pytest + Ruff + source inspection | feature branch / rev 19 | 2026-09-18 | source, pipeline, replay, calibration, runtime or UI change |
+| VER-031 | Performance Studio expansion candidate | verified and merged | 149 tests and Ruff passed locally; PR #9 merged as `c7f6e13aef978ea2929e8b8486ad6da4b7795e0e`; post-merge CI run `35397376993` passed Ubuntu, macOS, MediaPipe smoke, UI smoke, and `required-ci`; `.cpc` format remains v1 | local pytest + Ruff + GitHub Actions + PR #9 | main `c7f6e13` / rev 20 | 2026-09-18 | source, pipeline, replay, calibration, runtime or UI change |
 
 ## 12. Current Change Scope and Impact Radius
 
-- **Allowed to change next:** Protected integration of the revision-19 Performance Studio candidate; a second production backend only after exact runtime/model evidence; optional offline renderers behind the established seam; bounded defects found by CI or native validation.
+- **Allowed to change next:** A second production backend only after exact runtime/model evidence; optional offline renderers behind the established seam; bounded defects found by CI or native validation; ordinary future work through protected PRs.
 - **Must remain unchanged:** clean-room, local-first, media/model exclusion, license isolation, performance portability, strict capture integrity, no-overwrite recording, diagnostic privacy, repository-rights clarity, and pluggable-pipeline invariants.
 - **Mandatory next checks:** retain the 149-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, UI smoke, and `required-ci`; all changes to main require the protected pull-request path. Do not promote current hardware behavior beyond historical evidence unless it is physically rerun.
 
 ## 13. Compact Revision Log
 
+### Revision 20 — 2026-09-18
+
+- **Artifact/source identity:** authoritative implementation baseline `main` @ `c7f6e13aef978ea2929e8b8486ad6da4b7795e0e` from merged PR #9.
+- **Integration evidence:** GitHub Actions run `35397376993` passed Ubuntu core, macOS core, MediaPipe smoke, UI smoke, and `required-ci` after the merge.
+- **State promotion:** Performance Studio expansion is no longer pending integration. Threaded processing, renderer-applied calibration, runtime adapters, adapter readiness, and deterministic take review are part of the verified `main` baseline. The second production backend remains evidence-blocked.
+- **Boundary:** no new physical webcam, OBS consumer, or real production-model inference rerun was performed in this revision; historical physical evidence remains historical rather than being re-promoted as fresh proof.
+
 ### Revision 19 — 2026-09-18
 
-- **Artifact/source identity:** `feat/performance-studio-expansion` candidate from authoritative `main` @ `a123690`; primary expansion commit `fcd29647f165e31d9fbbda7d9a98145e4efcd17d`; renderer-applied calibration completion commit `f90905ef3e1932aa4461e11670289a00f2e234cf`; protected integration pending.
+- **Artifact/source identity:** `feat/performance-studio-expansion` was merged through PR #9 as `main` commit `c7f6e13aef978ea2929e8b8486ad6da4b7795e0e`; source branch included primary expansion commit `fcd29647f165e31d9fbbda7d9a98145e4efcd17d` and renderer-applied calibration completion commit `f90905ef3e1932aa4461e11670289a00f2e234cf`.
 - **State deltas:** Added optional bounded threaded performance processing with explicit tracker/render latency and queue telemetry; repaired live Recenter wiring; added versioned numeric calibration profiles that are applied only to renderer-facing state while canonical recorded `PerformanceFrame` data remains raw and portable; added renderer-neutral callback and loopback-only NDJSON runtime transport; added explicit tracker/renderer capability registry; added deterministic take timeline seek/step/play/loop, non-destructive annotation sidecars, A/B inspection, and renderer-path replay helper; preserved canonical `.cpc` v1.
 - **Second-backend evidence outcome:** production backend addition blocked rather than fabricated. Local environment shows MediaPipe 0.10.35 available and ONNX Runtime, Torch, TensorFlow, InsightFace, and ONNX absent. Synthetic adapter is regression-only.
 - **Validation:** pre-change baseline Ruff + 134 tests passed; revision-19 local validation Ruff + 149 tests passed. Focused Studio/Takes/config/worker validation passed 21 tests. No new webcam, OBS consumer, or production-model inference run is claimed in this revision.
-- **Delivery:** feature branch is intended for normal protected PR + `required-ci`; do not treat this state entry as evidence that `main` has changed.
+- **Delivery:** PR #9 merged through the protected branch path. Post-merge CI run `35397376993` passed all required lanes, including `required-ci`. No direct push to `main` was used.
 
 ### Revision 18 — 2026-09-02
 
