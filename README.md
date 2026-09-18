@@ -26,7 +26,7 @@ preview  ├─ optional .cpc recording
 ```
 
 The system is validated across three distinct tiers (see [`docs/HARDWARE_VALIDATION.md`](docs/HARDWARE_VALIDATION.md) and [`OPERATIONAL_STATE.md`](OPERATIONAL_STATE.md)):
-- **Deterministic proof**: 147 automated regressions across Linux and macOS covering schema, geometry, rig parsing, safe degradation, lifecycle rollback, `.cpc` recording/recovery, CLI wiring, and PySide6 desktop studio workspaces.
+- **Deterministic proof**: 149 automated regressions across Linux and macOS covering schema, geometry, rig parsing, safe degradation, lifecycle rollback, `.cpc` recording/recovery, CLI wiring, and PySide6 desktop studio workspaces.
 - **Physical webcam & MediaPipe proof**: live Apple Silicon AVFoundation camera capture at 30 FPS, real-time MediaPipe face tracking (~14 ms/frame, ~89% track rate), live rig-warp character rendering, and portable `.cpc` take recording/replay without camera pixels.
 - **Virtual-camera receive proof**: OBS Virtual Camera 1280x720 output actively received and consumed by external video consumer at 30 FPS without buffer mismatch or drift.
 
