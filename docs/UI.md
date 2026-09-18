@@ -47,12 +47,13 @@ The primary live performance capture, preview, and streaming hub.
 * **Context Inspector**: A sleek ~360px contextual slide-out drawer on the right side replaces all permanent sidebars and nested scrolling columns.
 * **Truthful Scoped Readiness**: Displays observable readiness states (`● Preview Ready (No Tracking)`, `● Tracking Ready (Passthrough)`, `● Ready to Perform`, or `▲ Issues (Needs Attention)`).
 * **Lifecycle Transport Controls**: Single dominant **`[ ▶ Start Performing ]`** action when idle, transitioning to **`[ ● LIVE ]`**, **`[ 🎯 Recenter (Cmd+R) ]`**, and **`[ ■ Stop Session (Esc) ]`** when active.
-* **Neutral Calibration / Recenter (`Cmd+R` / `C`)**: Real-time calibration button to zero out resting facial expression and head pose offsets, enabling relative performance capturing from the performer's natural neutral face.
+* **Neutral Calibration / Recenter (`Cmd+R` / `C`)**: Real-time renderer recenter plus a 60-frame local `PerformanceFrame` calibration measurement. Profiles are versioned numeric metadata only, can be session-only or explicitly saved/loaded/reset, and never contain camera pixels.
 * **Clean Preview Window / Projector (`Cmd+Shift+P`)**: Dedicated, standalone projector window for secondary monitors or OBS screen grabs. Supports Always-on-Top (`Qt.WindowStaysOnTopHint`), Fullscreen (`F11`), and HUD display modes without interrupting capture.
 * **Session Presets with Dirty State**: Save, load, duplicate, rename, delete, import, and export named local presets with `• Modified` indicator.
 * **Automatic Safe Filename Generator**: One-click timestamp generator creating deterministic, collision-safe filenames (e.g. `take_2026-09-02_043512.cpc`).
 * **Performance Mode (`Cmd+P`)**: Distraction-free full-preview canvas view with minimal live HUD overlays and quick-stop control.
 * **Dual Gain Controls**: Real-time sliders and numeric double spinboxes (`0.00x` to `3.00x`) for mouth/brow expressiveness and head pose tracking, with single-click reset (`↺`).
+* **Performance Runtime Controls**: Serial compatibility mode or bounded threaded mode with a small worker queue, truthful tracker/renderer readiness, and optional local runtime JSON output bound to loopback only.
 * **Outputs & Recording**:
   * **`.cpc` Performance Take**: Record raw facial tracking vectors and blendshape coefficients to disk.
   * **Rendered MP4 Video**: Record real-time composited character output.
@@ -72,6 +73,8 @@ Interactive 6-stage guided character onboarding and mesh visualizer workspace.
 ### 3. Takes Library
 Inspect, validate, and verify `.cpc` performance capture recordings.
 * **Recent-Takes-First Table**: Library table showing recent recordings with status badges, durations, frame counts, and file sizes.
+* **Timeline Review**: Scrub by deterministic frame position, play/pause, single-frame step, playback speed, loop ranges, and inspect confidence, head rotation, and major expression channels.
+* **Non-Destructive Notes & Comparison**: Markers are stored in a versioned sidecar rather than rewriting `.cpc`; A/B inspection compares frame count, duration, and tracked-frame rate.
 * **Contextual Details Drawer**: Selected take overview card with direct "Reveal in Finder" action.
 * **Collapsible Raw JSON**: Technical JSON metadata tucked behind an expandable disclosure.
 
@@ -115,3 +118,12 @@ The CPC Desktop Interface adheres to strict privacy and data isolation standards
 * **Zero Telemetry**: No analytics, telemetry, crash reporters, or external tracking pings.
 * **Zero Network Calls**: The interface operates 100% offline with zero remote service dependencies once models are installed.
 * **Performer Isolation**: `.cpc` take recordings store facial landmark coordinates and blendshapes only. Performer camera pixels are never stored in performance capture files.
+
+
+## 6. Runtime and Adapter Boundaries
+
+The Studio keeps the existing stage-first architecture. Performance controls live in the Session inspector rather than creating a new workspace. The optional threaded mode uses a bounded queue and preserves canonical `PerformanceFrame` order; only presentation is eligible for coalescing. Telemetry reports pipeline mode, capture FPS, tracker latency, render latency, queue depth, canonical processed frames, and presentation-drop/coalescing counts.
+
+Adapter readiness distinguishes package availability from model readiness. MediaPipe remains optional and a missing model is reported separately from a missing package. RigWarp remains the deterministic renderer. The synthetic reference adapter is test-only and is never presented as a production model backend.
+
+The runtime JSON stream is opt-in and binds to `127.0.0.1` only. It carries normalized performer state, not camera pixels, and has no cloud service or telemetry dependency.

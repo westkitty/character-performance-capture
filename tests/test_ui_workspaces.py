@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import cv2
 import numpy as np
 import pytest
@@ -245,3 +247,38 @@ def test_settings_workspace(qapp):
     workspace = SettingsWorkspace()
     workspace.resize(800, 500)
     assert workspace._reset_btn.isEnabled()
+
+
+def test_takes_workspace_timeline_controls(qapp, tmp_path):
+    from cpc.performance import PerformanceFrame
+    from cpc.recording import PerformanceRecorder
+    from cpc.ui.workspaces.takes_workspace import TakesWorkspace
+
+    take = tmp_path / "timeline.cpc"
+    with PerformanceRecorder(take, tracker="test", profile="generic") as rec:
+        for i in range(4):
+            rec.write(
+                PerformanceFrame(
+                    i,
+                    i * 0.1,
+                    True,
+                    "test",
+                    blendshapes={"jawOpen": i / 4},
+                    head_rotation_deg=(0.0, float(i), 0.0),
+                )
+            )
+
+    workspace = TakesWorkspace()
+    workspace.inspect_path(take)
+    assert workspace._timeline_slider.maximum() == 3
+    workspace._step_frame(1)
+    assert workspace._timeline.position == 1
+    workspace._loop_start.setValue(1)
+    workspace._loop_end.setValue(2)
+    workspace._toggle_loop()
+    assert workspace._timeline.loop == (1, 2)
+    workspace._marker_edit.setText("good beat")
+    workspace._add_marker()
+    assert Path(f"{take}.annotations.json").is_file()
+    assert take.is_file()
+    workspace.close()

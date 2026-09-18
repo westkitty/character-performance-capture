@@ -44,6 +44,11 @@ class SessionConfig:
     no_window: bool = False
     frames: int = 0
 
+    performance_pipeline_mode: str = "serial"  # "serial" or "threaded"
+    pipeline_queue_size: int = 3
+    calibration_profile_path: Path | None = None
+    runtime_loopback_port: int | None = None
+
     extra_metadata: dict = field(default_factory=dict)
 
     @classmethod
@@ -219,6 +224,12 @@ class SessionConfig:
 
         if self.frames < 0:
             errors.append("Frame limit cannot be negative.")
+        if self.performance_pipeline_mode not in ("serial", "threaded"):
+            errors.append(f"Unknown performance pipeline mode: {self.performance_pipeline_mode}")
+        if self.pipeline_queue_size < 1 or self.pipeline_queue_size > 32:
+            errors.append("Pipeline queue size must be between 1 and 32.")
+        if self.runtime_loopback_port is not None and not (0 <= self.runtime_loopback_port <= 65535):
+            errors.append("Runtime loopback port must be between 0 and 65535.")
 
         return errors
 

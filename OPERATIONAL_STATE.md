@@ -7,8 +7,8 @@
   "project_name": "Character Performance Capture",
   "project_root": "westkitty/character-performance-capture",
   "artifact_path": null,
-  "state_revision": 18,
-  "last_updated": "2026-09-02",
+  "state_revision": 19,
+  "last_updated": "2026-09-18",
   "current_baseline": {
     "identity": "CPC 1.1.0 on main incorporating Stage-First Total UX Rearchitecture, Curated Model Library, Guided Character Setup, and hermetic test isolation via PR #7 (squash merge 034a9aa6b571cb3e7805ad7e716a99108688cdd7); 134 regression tests; ruleset 22061363 active.",
     "state": "merged-main-v1.1",
@@ -125,10 +125,10 @@ Core and previously validated physical routes remain verified. The 134-test suit
 - **PND-002 — RESOLVED at revision 10:** Real webcam + MediaPipe executed and verified.
 - **PND-005 — RESOLVED at revision 10:** Virtual camera consumer receive side executed and verified.
 - **PND-006:** If public reuse is later intended, explicitly replace the proprietary license rather than assuming public visibility grants reuse rights.
-- **PND-008:** Optional tracker/renderer threading for higher live FPS (post-1.0 optimization).
+- **PND-008 — IMPLEMENTED/LOCALLY VERIFIED at revision 19:** Optional bounded threaded performance processing exists on `feat/performance-studio-expansion`; protected-PR integration to `main` remains pending.
 - **PND-009 — RESOLVED at revision 10:** Real webcam run recorded and promoted to `1.0.0`.
 - **PND-010 — RESOLVED at revision 12:** Desktop studio GUI (`cpc-ui`) implemented and verified.
-- **PND-011 — RESOLVED at revision 14:** Production desktop QoL megapass (Clean Preview projector, presets with dirty state, neutral pose recentering, drag-and-drop, batch inspection) implemented with deterministic/CI verification and reported native exercise.
+- **PND-011 — RESOLVED at revision 14:** Production desktop QoL megapass (Clean Preview projector, presets with dirty state, neutral pose recentering, drag-and-drop, batch inspection) implemented with deterministic/CI verification and reported native exercise.\n- **PND-012 — EVIDENCE-BLOCKED at revision 19:** A second production model backend is not claimed. The active project virtualenv has MediaPipe 0.10.35 but no ONNX Runtime, Torch, TensorFlow, InsightFace, or ONNX stack; exact runtime license, exact model license, model-distribution rules, and Apple-Silicon suitability must be evidenced before promotion.
 
 ## 10. Active Decisions, Defaults, and Prohibitions
 
@@ -159,7 +159,7 @@ Core and previously validated physical routes remain verified. The 134-test suit
 - **DEC-025:** Reusable `ModelSelectorWidget` provides unified model discovery, Recommended badge, readiness indicators, download progress, and advanced technical disclosure across both Character Setup and Live Studio.
 - **DEC-026:** Stage-First Live Studio with contextual Inspector replaces permanently exposed configuration walls while retaining the same underlying SessionConfig and capture pipeline.
 - **DEC-027:** Readiness labels are scoped observable claims and may only state Preview Ready / Tracking Ready / Ready to Perform when corresponding prerequisites are satisfied; missing or unconfigured components truthfully report Needs Attention.
-- **DEC-028:** Tests for UI model and readiness state must be hermetically isolated from developer-machine QSettings and local model caches.
+- **DEC-028:** Tests for UI model and readiness state must be hermetically isolated from developer-machine QSettings and local model caches.\n- **DEC-029:** Threaded processing is optional and bounded. Canonical frame identity/order is assigned before enqueue; `.cpc`, rendered video, virtual camera, and downstream runtime state consume ordered completed results. Presentation may be coalesced independently.\n- **DEC-030:** Calibration profiles are versioned numeric `PerformanceFrame` metadata only. Saving/loading/resetting calibration must not embed camera pixels, mutate tracker models, or rewrite character rigs.\n- **DEC-031:** Runtime integration is renderer-neutral performer state. The provided socket transport is opt-in, newline-delimited JSON, and binds to `127.0.0.1` only.\n- **DEC-032:** Adapter readiness separates package availability, model availability, provenance, hardware expectations, and production evidence. A synthetic reference adapter is test-only and never evidence of a production backend.\n- **DEC-033:** Take annotations live in versioned sidecars and never rewrite the original `.cpc`; deterministic replay/seek remains camera-independent.
 
 ## 11. Validation and Evidence Matrix
 
@@ -188,15 +188,23 @@ Core and previously validated physical routes remain verified. The 134-test suit
 | VER-027 | QoL megapass + 109-test candidate | verified | Commit 070c2ab; Actions run 33609563770 green in Ubuntu/macOS/MediaPipe/UI-smoke/required-ci | GitHub Actions + implementation-run local/native evidence | code 070c2ab / rev 14 | 2026-09-02 | QoL/UI change |
 | VER-028 | Curated Model Library & Guided Character Setup | verified | 123 passing automated tests; 100% clean Ruff; complete 6-stage journey verified with high-res captures | pytest + Ruff + visual captures | code rev 16 | 2026-09-02 | Model registry / Character setup change |
 | VER-029 | Stage-First CPC Studio UX Rearchitecture & Hermetic CI Repair | verified | 134 passing automated tests; 100% clean Ruff; hermetic test environment isolation; 5 workspaces rearchitected around dominant stage and contextual inspector | pytest + Ruff + visual captures + CI | code rev 17 | 2026-09-02 | UI architecture & hermetic test repair |
-| VER-030 | Post-Merge Main Integration Verification | verified | PR #7 merged into main (034a9aa6b571cb3e7805ad7e716a99108688cdd7); post-merge CI run 33656804501 passed all 5 lanes (Ubuntu, macOS, MediaPipe smoke, UI smoke, required-ci) with 134 tests | GitHub Actions + PR #7 | code 034a9aa / rev 18 | 2026-09-02 | PR merge / main push |
+| VER-030 | Post-Merge Main Integration Verification | verified | PR #7 merged into main (034a9aa6b571cb3e7805ad7e716a99108688cdd7); post-merge CI run 33656804501 passed all 5 lanes (Ubuntu, macOS, MediaPipe smoke, UI smoke, required-ci) with 134 tests | GitHub Actions + PR #7 | code 034a9aa / rev 18 | 2026-09-02 | PR merge / main push |\n| VER-031 | Performance Studio expansion candidate | locally verified / integration pending | 147 tests and Ruff pass on `feat/performance-studio-expansion`; focused threaded/calibration/runtime/take/UI regressions pass; `.cpc` format remains v1 | local pytest + Ruff + source inspection | feature branch / rev 19 | 2026-09-18 | source, pipeline, replay, calibration, runtime or UI change |
 
 ## 12. Current Change Scope and Impact Radius
 
-- **Allowed to change next:** Optional tracker/renderer threading optimization (PND-008); optional offline generative renderers behind the existing seam; ordinary future feature development via protected PRs; bounded post-merge defects if discovered.
+- **Allowed to change next:** Protected integration of the revision-19 Performance Studio candidate; a second production backend only after exact runtime/model evidence; optional offline renderers behind the established seam; bounded defects found by CI or native validation.
 - **Must remain unchanged:** clean-room, local-first, media/model exclusion, license isolation, performance portability, strict capture integrity, no-overwrite recording, diagnostic privacy, repository-rights clarity, and pluggable-pipeline invariants.
-- **Mandatory next checks:** retain the 134-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, UI smoke, and `required-ci`; all future changes to main require a protected pull request.
+- **Mandatory next checks:** retain the 147-test regression suite, Ruff, Linux/macOS CI, MediaPipe smoke, UI smoke, and `required-ci`; all changes to main require the protected pull-request path. Do not promote current hardware behavior beyond historical evidence unless it is physically rerun.
 
 ## 13. Compact Revision Log
+
+### Revision 19 — 2026-09-18
+
+- **Artifact/source identity:** `feat/performance-studio-expansion` candidate from authoritative `main` @ `a123690`; protected integration pending.
+- **State deltas:** Added optional bounded threaded performance processing with explicit tracker/render latency and queue telemetry; repaired live Recenter wiring; added versioned numeric calibration profiles; added renderer-neutral callback and loopback-only NDJSON runtime transport; added explicit tracker/renderer capability registry; added deterministic take timeline seek/step/play/loop, non-destructive annotation sidecars, A/B inspection, and renderer-path replay helper; preserved canonical `.cpc` v1.
+- **Second-backend evidence outcome:** production backend addition blocked rather than fabricated. Local environment shows MediaPipe 0.10.35 available and ONNX Runtime, Torch, TensorFlow, InsightFace, and ONNX absent. Synthetic adapter is regression-only.
+- **Validation:** pre-change baseline Ruff + 134 tests passed; revision-19 local validation Ruff + 147 tests passed. Focused Studio/Takes/config/worker validation passed 21 tests. No new webcam, OBS consumer, or production-model inference run is claimed in this revision.
+- **Delivery:** feature branch is intended for normal protected PR + `required-ci`; do not treat this state entry as evidence that `main` has changed.
 
 ### Revision 18 — 2026-09-02
 
