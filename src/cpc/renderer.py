@@ -264,6 +264,11 @@ class RigWarpRenderer:
         roll = np.degrees(np.arctan2(align_matrix[1, 0], align_matrix[0, 0]))
         return (float(roll) * self.head_gain, 0.0, 0.0)
 
+    def recenter(self) -> None:
+        """Use the next valid tracked frame as the renderer-neutral performer pose."""
+        self._neutral_perf = None
+        self._neutral_head = None
+
     def close(self) -> None:
         self._src_points = None
         self._triangles = None

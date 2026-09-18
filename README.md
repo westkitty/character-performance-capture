@@ -26,7 +26,7 @@ preview  ├─ optional .cpc recording
 ```
 
 The system is validated across three distinct tiers (see [`docs/HARDWARE_VALIDATION.md`](docs/HARDWARE_VALIDATION.md) and [`OPERATIONAL_STATE.md`](OPERATIONAL_STATE.md)):
-- **Deterministic CI proof**: 106 automated regressions across Linux and macOS covering schema, geometry, rig parsing, safe degradation, lifecycle rollback, `.cpc` recording/recovery, CLI wiring, and PySide6 desktop studio workspaces.
+- **Deterministic proof**: 149 automated regressions across Linux and macOS covering schema, geometry, rig parsing, safe degradation, lifecycle rollback, `.cpc` recording/recovery, CLI wiring, and PySide6 desktop studio workspaces.
 - **Physical webcam & MediaPipe proof**: live Apple Silicon AVFoundation camera capture at 30 FPS, real-time MediaPipe face tracking (~14 ms/frame, ~89% track rate), live rig-warp character rendering, and portable `.cpc` take recording/replay without camera pixels.
 - **Virtual-camera receive proof**: OBS Virtual Camera 1280x720 output actively received and consumed by external video consumer at 30 FPS without buffer mismatch or drift.
 
@@ -57,9 +57,12 @@ cpc-ui
 The desktop application provides full capability parity with the CLI, including:
 - **Studio (Live)**: Live webcam / video tracking, real-time rig-warp rendering, live telemetry, `.cpc` & MP4 recording, and OBS virtual camera streaming.
 - **Character & Rig Studio**: Automatic landmark detection, rig derivation, and visual wireframe inspection.
-- **Takes Inspector**: Header validation, duration, effective FPS, and frame count inspector for `.cpc` performance recordings.
+- **Takes Inspector**: Deterministic timeline scrub/seek, play/pause, frame step, playback speed, loop ranges, confidence/head/expression inspection, A/B take comparison, and versioned annotation sidecars that never rewrite the original `.cpc`.
 - **Diagnostics Studio**: Subsystem hardware probe and performance benchmark suite (`cpc --doctor` in GUI).
 - **Settings / About**: System dependency readiness dashboard and local preference management.
+- **Performance runtime**: Optional bounded threaded processing, versioned local calibration profiles, truthful tracker/renderer adapter readiness, and an opt-in newline-delimited JSON performer-state stream bound to `127.0.0.1` only.
+
+The canonical `.cpc` v1 format is unchanged: threading, annotations, calibration profiles, and runtime transport do not add camera pixels or renderer-specific latent state to a take.
 
 See [`docs/UI.md`](docs/UI.md) for full desktop studio documentation.
 

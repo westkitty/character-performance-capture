@@ -8,6 +8,7 @@ from PySide6.QtGui import QDesktopServices, QFont
 from PySide6.QtWidgets import (
     QApplication,
     QComboBox,
+    QFileDialog,
     QFrame,
     QHBoxLayout,
     QInputDialog,
@@ -15,6 +16,7 @@ from PySide6.QtWidgets import (
     QMessageBox,
     QPushButton,
     QScrollArea,
+    QSpinBox,
     QSplitter,
     QTabWidget,
     QTextEdit,
@@ -22,6 +24,8 @@ from PySide6.QtWidgets import (
     QWidget,
 )
 
+from cpc.adapters import default_adapter_registry
+from cpc.calibration import CalibrationProfile
 from cpc.session import SessionConfig
 from cpc.ui.settings import AppSettings
 from cpc.ui.widgets.clean_preview_window import CleanPreviewWindow
@@ -58,6 +62,9 @@ class LiveWorkspace(QWidget):
         self._clean_preview_win: CleanPreviewWindow | None = None
         self._countdown_timer: QTimer | None = None
         self._countdown_remaining: int = 0
+        self._calibration_profile: CalibrationProfile | None = None
+        self._calibration_profile_path: Path | None = None
+        self._runtime_loopback_port: int | None = None
 
         self._init_ui()
         self._load_presets_menu()
@@ -356,6 +363,40 @@ class LiveWorkspace(QWidget):
         pf_layout.addLayout(p_btns)
         sb_layout.addWidget(preset_frame)
 
+        runtime_frame = QFrame()
+        runtime_frame.setStyleSheet("background-color: #14141c; border: 1px solid #232330; border-radius: 6px; padding: 8px;")
+        rt_layout = QVBoxLayout(runtime_frame)
+        rt_layout.setSpacing(6)
+        rt_layout.addWidget(QLabel("Performance Runtime"))
+        self._runtime_status_lbl = QLabel("Pipeline: Serial • Calibration: session neutral • Runtime stream: Off")
+        self._runtime_status_lbl.setWordWrap(True)
+        self._runtime_status_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        rt_layout.addWidget(self._runtime_status_lbl)
+        cal_row = QHBoxLayout()
+        self._save_calibration_btn = QPushButton("Save Calibration...")
+        self._save_calibration_btn.clicked.connect(self._save_calibration_profile)
+        cal_row.addWidget(self._save_calibration_btn)
+        self._load_calibration_btn = QPushButton("Load Calibration...")
+        self._load_calibration_btn.clicked.connect(self._load_calibration_profile)
+        cal_row.addWidget(self._load_calibration_btn)
+        self._reset_calibration_btn = QPushButton("Reset")
+        self._reset_calibration_btn.clicked.connect(self._reset_calibration_profile)
+        cal_row.addWidget(self._reset_calibration_btn)
+        rt_layout.addLayout(cal_row)
+        port_row = QHBoxLayout()
+        port_row.addWidget(QLabel("Local runtime JSON port (0 = off):"))
+        self._runtime_port_spin = QSpinBox()
+        self._runtime_port_spin.setRange(0, 65535)
+        self._runtime_port_spin.setValue(0)
+        self._runtime_port_spin.valueChanged.connect(self._on_config_changed)
+        port_row.addWidget(self._runtime_port_spin)
+        rt_layout.addLayout(port_row)
+        self._adapter_status_lbl = QLabel("")
+        self._adapter_status_lbl.setWordWrap(True)
+        self._adapter_status_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        rt_layout.addWidget(self._adapter_status_lbl)
+        sb_layout.addWidget(runtime_frame)
+
         self.advanced_panel = AdvancedPanel()
         self.advanced_panel.config_changed.connect(self._on_config_changed)
         sb_layout.addWidget(self.advanced_panel)
@@ -461,6 +502,7 @@ class LiveWorkspace(QWidget):
         cfg = self.get_session_config()
         self.cmd_preview.update_command(cfg)
         self._update_session_strip(cfg)
+        self._update_runtime_status(cfg)
         self._update_preflight()
         self._update_preset_dirty_state()
 
@@ -544,6 +586,9 @@ class LiveWorkspace(QWidget):
         self.renderer_panel.apply_to_config(cfg)
         self.outputs_panel.apply_to_config(cfg)
         self.advanced_panel.apply_to_config(cfg)
+        cfg.calibration_profile_path = self._calibration_profile_path
+        port = self._runtime_port_spin.value()
+        cfg.runtime_loopback_port = port if port > 0 else None
         return cfg
 
     def set_session_config(self, cfg: SessionConfig) -> None:
@@ -552,6 +597,15 @@ class LiveWorkspace(QWidget):
         self.renderer_panel.load_from_config(cfg)
         self.outputs_panel.load_from_config(cfg)
         self.advanced_panel.load_from_config(cfg)
+        self._calibration_profile_path = cfg.calibration_profile_path
+        self._runtime_loopback_port = cfg.runtime_loopback_port
+        self._runtime_port_spin.setValue(cfg.runtime_loopback_port or 0)
+        if cfg.calibration_profile_path and cfg.calibration_profile_path.is_file():
+            try:
+                self._calibration_profile = CalibrationProfile.load(cfg.calibration_profile_path)
+            except (ValueError, OSError, KeyError, TypeError):
+                self._calibration_profile = None
+        self._update_runtime_status(cfg)
         self.cmd_preview.update_command(cfg)
         self._update_session_strip(cfg)
         self._update_preflight()
@@ -684,6 +738,7 @@ class LiveWorkspace(QWidget):
         self._worker = SessionWorker(cfg, session_token=current_token, parent=self)
         self._worker.frame_ready.connect(lambda img, *_: self._on_frame_ready(current_token, img))
         self._worker.telemetry_updated.connect(lambda data: self._on_telemetry_updated(current_token, data))
+        self._worker.calibration_updated.connect(lambda profile, status: self._on_calibration_updated(current_token, profile, status))
         self._worker.session_finished.connect(lambda: self._on_session_finished(current_token))
         self._worker.error_occurred.connect(lambda err, tech: self._on_error_occurred(current_token, err, tech))
 
@@ -704,7 +759,9 @@ class LiveWorkspace(QWidget):
     def calibrate_neutral(self) -> None:
         if self._worker is not None and self._worker.isRunning():
             self._worker.calibrate_neutral()
-            self._log_activity("Neutral head pose calibrated.")
+            self._log_activity("Recenter requested; measuring a 60-frame local calibration profile.")
+        else:
+            self._log_activity("Start a live session before recentering calibration.")
 
     def open_clean_preview(self) -> None:
         if self._clean_preview_win is None:
@@ -746,6 +803,71 @@ class LiveWorkspace(QWidget):
         self.preview_widget.update_telemetry(data)
         if self._clean_preview_win is not None and self._clean_preview_win.isVisible():
             self._clean_preview_win.update_telemetry(data)
+
+    def _on_calibration_updated(self, token: int, payload: dict, status: str) -> None:
+        if token != self._session_token:
+            return
+        if payload:
+            try:
+                self._calibration_profile = CalibrationProfile.from_dict(payload)
+            except (ValueError, TypeError, KeyError) as exc:
+                self._log_activity(f"Calibration profile rejected: {exc}")
+                return
+        self._runtime_status_lbl.setText(
+            self._runtime_status_lbl.text().split(" • Calibration:")[0]
+            + f" • Calibration: {status} • Runtime stream: "
+            + (str(self._runtime_port_spin.value()) if self._runtime_port_spin.value() else "Off")
+        )
+        self._log_activity(f"Calibration status: {status}")
+
+    def _save_calibration_profile(self) -> None:
+        if self._calibration_profile is None:
+            QMessageBox.information(self, "Calibration", "Run Recenter during a live session before saving a profile.")
+            return
+        dest, _ = QFileDialog.getSaveFileName(
+            self, "Save Calibration Profile", self._settings.get_last_directory(), "CPC Calibration (*.json);;All Files (*)"
+        )
+        if not dest:
+            return
+        path = Path(dest)
+        self._calibration_profile.save(path)
+        self._calibration_profile_path = path
+        self._settings.set_last_directory(path)
+        self._update_runtime_status(self.get_session_config())
+
+    def _load_calibration_profile(self) -> None:
+        src, _ = QFileDialog.getOpenFileName(
+            self, "Load Calibration Profile", self._settings.get_last_directory(), "CPC Calibration (*.json);;All Files (*)"
+        )
+        if not src:
+            return
+        try:
+            profile = CalibrationProfile.load(src)
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            QMessageBox.warning(self, "Invalid Calibration", str(exc))
+            return
+        self._calibration_profile = profile
+        self._calibration_profile_path = Path(src)
+        self._settings.set_last_directory(src)
+        self._update_runtime_status(self.get_session_config())
+
+    def _reset_calibration_profile(self) -> None:
+        self._calibration_profile = None
+        self._calibration_profile_path = None
+        if self._worker is not None and self._worker.isRunning():
+            self._worker.calibrate_neutral()
+        self._update_runtime_status(self.get_session_config())
+
+    def _update_runtime_status(self, cfg: SessionConfig) -> None:
+        mode = "Threaded" if cfg.performance_pipeline_mode == "threaded" else "Serial"
+        calibration = self._calibration_profile_path.name if self._calibration_profile_path else "session neutral"
+        runtime = str(cfg.runtime_loopback_port) if cfg.runtime_loopback_port else "Off"
+        self._runtime_status_lbl.setText(
+            f"Pipeline: {mode} • Calibration: {calibration} • Runtime stream: {runtime}"
+        )
+        registry = default_adapter_registry(mediapipe_model=cfg.model_path)
+        summary = ", ".join(f"{item.display_name}: {item.readiness}" for item in registry if item.adapter_id != "reference.synthetic")
+        self._adapter_status_lbl.setText("Adapters — " + summary)
 
     def _on_session_finished(self, token: int) -> None:
         if token != self._session_token:

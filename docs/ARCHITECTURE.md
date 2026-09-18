@@ -36,7 +36,7 @@ with model inference. OpenCV preview and an mp4 recorder exist; `VirtualCameraSi
 frames with explicit dimension/FPS negotiation, aspect-preserving letterboxing, a
 clean error when the backend is absent, and no disk or network writes.
 
-## Current v1.0.0-rc1 slice
+## Current v1.1 production slice
 
 ```text
 CameraSource | VideoFileSource
@@ -85,8 +85,8 @@ LivePortrait is a stronger future rendering experiment because its project code 
 4. Ship a license-clean production-capable renderer behind the seam. *(done: `RigWarpRenderer`)*
 5. Add a virtual-camera sink suitable for OBS. *(done: `VirtualCameraSink`)*
 6. Record a real target **webcam** run (`cpc --doctor --camera 0`, then the live character route). *(pending: camera permission)*
-7. If a higher live frame-rate is needed, overlap tracker and renderer on separate threads.
-8. Optionally add a high-quality offline renderer; freeze a default only after license and device-performance evidence exist.
+7. Optional bounded worker mode now overlaps frame acquisition with ordered tracker/renderer work while preserving canonical frame order. *(done)*
+8. Add a second production model backend only after its exact runtime license, exact model license, local compatibility, and model-distribution constraints are independently evidenced. The current environment does not meet that gate.
 
 ## Deliberate non-goals for the foundation
 
@@ -95,3 +95,14 @@ LivePortrait is a stronger future rendering experiment because its project code 
 - Making cloud inference mandatory.
 - Tying capture semantics to a single human-face representation.
 - Treating popularity or demo quality as proof of production fitness.
+
+
+## Performance-studio expansion
+
+CPC now has two execution modes behind the same `PerformanceFrame` contract. `PerformancePipeline` remains the compatibility path. `ThreadedPerformancePipeline` uses bounded queues and one owned worker thread; frame indices are assigned before enqueue, results are consumed FIFO, canonical performer state is never silently dropped, worker errors cross back to the caller, and worker lifecycle is bounded before tracker/renderer resources are released. Live presentation remains disposable; `.cpc`, rendered-video, virtual-camera, and runtime-state delivery consume ordered completed results.
+
+Calibration is a separate versioned local profile (`cpc-calibration-profile`, v1) containing numeric neutral/range measurements only. It can mark unsupported channels, can be associated with a character path, and never embeds camera frames. Renderer recentering resets only the performer-relative neutral state.
+
+`AdapterCapability` records dependency/model requirements, supported portable channels, local/offline behavior, provenance, hardware expectations, and honest readiness. MediaPipe remains the only evidenced production tracker. The current project virtualenv contains MediaPipe 0.10.35 but no ONNX Runtime, Torch, TensorFlow, InsightFace, or ONNX runtime stack, so a second production backend is explicitly evidence-blocked rather than fabricated. A synthetic adapter exists only as a deterministic regression fixture.
+
+Downstream character runtimes can consume `PerformanceFrame` through an in-process callback or an opt-in NDJSON socket. The socket binds to `127.0.0.1` only, carries performer state rather than camera pixels, has no telemetry, and cleans up disconnected clients.

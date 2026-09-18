@@ -886,6 +886,19 @@ class AdvancedPanel(QGroupBox):
         self._preview_checkbox.stateChanged.connect(lambda: self.config_changed.emit())
         layout.addWidget(self._preview_checkbox, 3, 0, 1, 2)
 
+        layout.addWidget(QLabel("Performance Pipeline:"), 4, 0)
+        self._pipeline_combo = QComboBox()
+        self._pipeline_combo.addItems(["Serial (Compatibility)", "Threaded (Bounded Queue)"])
+        self._pipeline_combo.currentIndexChanged.connect(lambda: self.config_changed.emit())
+        layout.addWidget(self._pipeline_combo, 4, 1)
+
+        layout.addWidget(QLabel("Worker Queue:"), 5, 0)
+        self._queue_spin = QSpinBox()
+        self._queue_spin.setRange(1, 8)
+        self._queue_spin.setValue(3)
+        self._queue_spin.valueChanged.connect(lambda: self.config_changed.emit())
+        layout.addWidget(self._queue_spin, 5, 1)
+
         # Restore countdown setting
         cd = self._settings.get_countdown_seconds()
         if cd == 3:
@@ -924,6 +937,8 @@ class AdvancedPanel(QGroupBox):
             cfg.frames = self._custom_frames_spin.value()
 
         cfg.no_window = not self._preview_checkbox.isChecked()
+        cfg.performance_pipeline_mode = "threaded" if self._pipeline_combo.currentIndex() == 1 else "serial"
+        cfg.pipeline_queue_size = self._queue_spin.value()
 
     def load_from_config(self, cfg: SessionConfig) -> None:
         if cfg.frames == 0:
@@ -941,3 +956,5 @@ class AdvancedPanel(QGroupBox):
             self._custom_frames_spin.setValue(cfg.frames)
 
         self._preview_checkbox.setChecked(not cfg.no_window)
+        self._pipeline_combo.setCurrentIndex(1 if cfg.performance_pipeline_mode == "threaded" else 0)
+        self._queue_spin.setValue(max(1, min(8, cfg.pipeline_queue_size)))

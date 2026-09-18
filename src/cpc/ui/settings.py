@@ -83,6 +83,12 @@ class AppSettings:
             cfg.vcam_size = (1280, 720)
 
         cfg.virtual_camera = bool(self._settings.value("virtual_camera", False, type=bool))
+        cfg.performance_pipeline_mode = str(self._settings.value("performance_pipeline_mode", "serial"))
+        cfg.pipeline_queue_size = int(self._settings.value("pipeline_queue_size", 3))
+        cal_path = str(self._settings.value("calibration_profile_path", ""))
+        cfg.calibration_profile_path = Path(cal_path) if cal_path and Path(cal_path).is_file() else None
+        port_value = self._settings.value("runtime_loopback_port", "")
+        cfg.runtime_loopback_port = int(port_value) if str(port_value).strip() else None
         return cfg
 
     def save_session_config(self, cfg: SessionConfig) -> None:
@@ -105,6 +111,10 @@ class AppSettings:
         self._settings.setValue("head_gain", cfg.head_gain)
         self._settings.setValue("vcam_size", f"{cfg.vcam_size[0]}x{cfg.vcam_size[1]}")
         self._settings.setValue("virtual_camera", cfg.virtual_camera)
+        self._settings.setValue("performance_pipeline_mode", cfg.performance_pipeline_mode)
+        self._settings.setValue("pipeline_queue_size", cfg.pipeline_queue_size)
+        self._settings.setValue("calibration_profile_path", str(cfg.calibration_profile_path or ""))
+        self._settings.setValue("runtime_loopback_port", "" if cfg.runtime_loopback_port is None else cfg.runtime_loopback_port)
 
     # -----------------------------------------------------------------
     # First-Run Experience
@@ -159,6 +169,10 @@ class AppSettings:
             "head_gain": cfg.head_gain,
             "virtual_camera": cfg.virtual_camera,
             "vcam_size": list(cfg.vcam_size),
+            "performance_pipeline_mode": cfg.performance_pipeline_mode,
+            "pipeline_queue_size": cfg.pipeline_queue_size,
+            "calibration_profile_path": str(cfg.calibration_profile_path) if cfg.calibration_profile_path else None,
+            "runtime_loopback_port": cfg.runtime_loopback_port,
         }
         presets[name] = preset_data
         self._settings.setValue("presets_json", json.dumps(presets))
@@ -191,6 +205,12 @@ class AppSettings:
             cfg.virtual_camera = bool(data.get("virtual_camera", False))
             if data.get("vcam_size") and len(data["vcam_size"]) == 2:
                 cfg.vcam_size = (int(data["vcam_size"][0]), int(data["vcam_size"][1]))
+            cfg.performance_pipeline_mode = data.get("performance_pipeline_mode", "serial")
+            cfg.pipeline_queue_size = int(data.get("pipeline_queue_size", 3))
+            if data.get("calibration_profile_path"):
+                cfg.calibration_profile_path = Path(data["calibration_profile_path"])
+            if data.get("runtime_loopback_port") is not None:
+                cfg.runtime_loopback_port = int(data["runtime_loopback_port"])
             return cfg
         except (ValueError, TypeError, KeyError):
             return None
@@ -257,6 +277,10 @@ class AppSettings:
             and abs(cfg.head_gain - saved_cfg.head_gain) < 0.001
             and cfg.virtual_camera == saved_cfg.virtual_camera
             and cfg.vcam_size == saved_cfg.vcam_size
+            and cfg.performance_pipeline_mode == saved_cfg.performance_pipeline_mode
+            and cfg.pipeline_queue_size == saved_cfg.pipeline_queue_size
+            and cfg.calibration_profile_path == saved_cfg.calibration_profile_path
+            and cfg.runtime_loopback_port == saved_cfg.runtime_loopback_port
         )
 
     def export_preset_json(self, name: str, dest_path: Path) -> bool:

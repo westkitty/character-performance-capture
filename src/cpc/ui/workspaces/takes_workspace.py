@@ -3,18 +3,22 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, QTimer, Signal
 from PySide6.QtGui import QDesktopServices, QDragEnterEvent, QDropEvent, QFont
 from PySide6.QtWidgets import (
     QApplication,
+    QComboBox,
     QFileDialog,
     QFrame,
     QGridLayout,
     QHBoxLayout,
     QHeaderView,
     QLabel,
+    QLineEdit,
     QMessageBox,
     QPushButton,
+    QSlider,
+    QSpinBox,
     QSplitter,
     QTableWidget,
     QTableWidgetItem,
@@ -25,6 +29,7 @@ from PySide6.QtWidgets import (
 )
 
 from cpc.recording import read_capture
+from cpc.takes import TakeAnnotations, TakeMarker, TakeTimeline
 from cpc.ui.settings import AppSettings
 
 
@@ -38,6 +43,10 @@ class TakesWorkspace(QWidget):
         self.setAcceptDrops(True)
         self._current_take_path: Path | None = None
         self._settings = AppSettings()
+        self._timeline: TakeTimeline | None = None
+        self._annotations: TakeAnnotations | None = None
+        self._play_timer = QTimer(self)
+        self._play_timer.timeout.connect(self._playback_tick)
         self._init_ui()
         self.refresh_library()
 
@@ -172,6 +181,68 @@ class TakesWorkspace(QWidget):
         self._lbl_profile = self._add_field(grid, 2, 1, "Performance Profile:", "--")
         self._lbl_created = self._add_field(grid, 3, 0, "Created (UTC):", "--")
         dc_layout.addLayout(grid)
+
+        timeline_box = QFrame()
+        timeline_box.setStyleSheet("background-color: #101016; border: 1px solid #252532; border-radius: 6px; padding: 8px;")
+        tl = QVBoxLayout(timeline_box)
+        tl.setSpacing(6)
+        tl.addWidget(QLabel("Performance Timeline"))
+        self._timeline_slider = QSlider(Qt.Horizontal)
+        self._timeline_slider.setRange(0, 0)
+        self._timeline_slider.valueChanged.connect(self._on_timeline_changed)
+        tl.addWidget(self._timeline_slider)
+        self._frame_detail_lbl = QLabel("No frame selected")
+        self._frame_detail_lbl.setWordWrap(True)
+        self._frame_detail_lbl.setStyleSheet("color: #cbd5e1; font-size: 11px;")
+        tl.addWidget(self._frame_detail_lbl)
+
+        transport = QHBoxLayout()
+        self._step_back_btn = QPushButton("◀ Frame")
+        self._step_back_btn.clicked.connect(lambda: self._step_frame(-1))
+        transport.addWidget(self._step_back_btn)
+        self._play_btn = QPushButton("▶ Play")
+        self._play_btn.clicked.connect(self._toggle_playback)
+        transport.addWidget(self._play_btn)
+        self._step_forward_btn = QPushButton("Frame ▶")
+        self._step_forward_btn.clicked.connect(lambda: self._step_frame(1))
+        transport.addWidget(self._step_forward_btn)
+        transport.addWidget(QLabel("Speed:"))
+        self._speed_combo = QComboBox()
+        self._speed_combo.addItems(["0.25x", "0.5x", "1.0x", "1.5x", "2.0x"])
+        self._speed_combo.setCurrentText("1.0x")
+        transport.addWidget(self._speed_combo)
+        tl.addLayout(transport)
+
+        loop_row = QHBoxLayout()
+        loop_row.addWidget(QLabel("Loop frames:"))
+        self._loop_start = QSpinBox()
+        self._loop_end = QSpinBox()
+        self._loop_start.setRange(0, 0)
+        self._loop_end.setRange(0, 0)
+        loop_row.addWidget(self._loop_start)
+        loop_row.addWidget(QLabel("to"))
+        loop_row.addWidget(self._loop_end)
+        self._loop_btn = QPushButton("Set Loop")
+        self._loop_btn.clicked.connect(self._toggle_loop)
+        loop_row.addWidget(self._loop_btn)
+        tl.addLayout(loop_row)
+
+        note_row = QHBoxLayout()
+        self._marker_edit = QLineEdit()
+        self._marker_edit.setPlaceholderText("Marker / note for current frame")
+        note_row.addWidget(self._marker_edit, 1)
+        self._marker_btn = QPushButton("Add Marker")
+        self._marker_btn.clicked.connect(self._add_marker)
+        note_row.addWidget(self._marker_btn)
+        self._compare_btn = QPushButton("A/B Compare...")
+        self._compare_btn.clicked.connect(self._compare_take)
+        note_row.addWidget(self._compare_btn)
+        tl.addLayout(note_row)
+        self._comparison_lbl = QLabel("")
+        self._comparison_lbl.setWordWrap(True)
+        self._comparison_lbl.setStyleSheet("color: #94a3b8; font-size: 11px;")
+        tl.addWidget(self._comparison_lbl)
+        dc_layout.addWidget(timeline_box)
 
         # Action Buttons
         btn_row = QHBoxLayout()
@@ -390,6 +461,17 @@ class TakesWorkspace(QWidget):
             return
 
         self._current_take_path = path
+        self._timeline = TakeTimeline(capture)
+        self._annotations = TakeAnnotations.load(path)
+        max_index = max(0, capture.frame_count - 1)
+        self._timeline_slider.setRange(0, max_index)
+        self._timeline_slider.setValue(0)
+        self._loop_start.setRange(0, max_index)
+        self._loop_end.setRange(0, max_index)
+        self._loop_end.setValue(max_index)
+        self._play_timer.stop()
+        self._play_btn.setText("▶ Play")
+        self._update_frame_detail()
         self._take_title_lbl.setText(path.name)
         status_text = "● COMPLETE TAKE" if capture.complete else "▲ PARTIAL / RECOVERABLE"
         color = "#10b981" if capture.complete else "#f59e0b"
@@ -430,6 +512,117 @@ class TakesWorkspace(QWidget):
         }
         self._json_view.setText(json.dumps(report_dict, indent=2))
         self._tabs.setCurrentIndex(0)
+
+
+    def _on_timeline_changed(self, value: int) -> None:
+        if self._timeline is None or not self._timeline.frames:
+            return
+        self._timeline.position = max(0, min(value, len(self._timeline.frames) - 1))
+        self._update_frame_detail()
+
+    def _update_frame_detail(self) -> None:
+        if self._timeline is None or not self._timeline.frames:
+            self._frame_detail_lbl.setText("No performance frames")
+            return
+        frame = self._timeline.current()
+        confidence = "—" if frame.tracking_confidence is None else f"{frame.tracking_confidence:.2f}"
+        head = "—" if frame.head_rotation_deg is None else ", ".join(f"{v:.1f}°" for v in frame.head_rotation_deg)
+        major_names = ("jawOpen", "mouthSmileLeft", "mouthSmileRight", "eyeBlinkLeft", "eyeBlinkRight", "browInnerUp")
+        major = ", ".join(
+            f"{name}={frame.blendshapes[name]:.2f}"
+            for name in major_names
+            if name in frame.blendshapes
+        ) or "no major expression channels"
+        self._frame_detail_lbl.setText(
+            f"Frame {frame.frame_index} • {frame.timestamp_s:.3f}s • "
+            f"tracked={frame.tracked} • confidence={confidence} • head=({head}) • {major}"
+        )
+
+    def _step_frame(self, delta: int) -> None:
+        if self._timeline is None or not self._timeline.frames:
+            return
+        frame = self._timeline.step(delta)
+        self._timeline_slider.setValue(self._timeline.position)
+        self._update_frame_detail()
+        if frame is None:
+            return
+
+    def _toggle_playback(self) -> None:
+        if self._timeline is None or not self._timeline.frames:
+            return
+        if self._play_timer.isActive():
+            self._play_timer.stop()
+            self._play_btn.setText("▶ Play")
+            return
+        speed = float(self._speed_combo.currentText().removesuffix("x"))
+        self._play_timer.start(max(8, round(33 / speed)))
+        self._play_btn.setText("⏸ Pause")
+
+    def _playback_tick(self) -> None:
+        if self._timeline is None or not self._timeline.frames:
+            self._play_timer.stop()
+            return
+        old = self._timeline.position
+        self._timeline.step(1)
+        if self._timeline.loop is None and self._timeline.position == old:
+            self._play_timer.stop()
+            self._play_btn.setText("▶ Play")
+        self._timeline_slider.setValue(self._timeline.position)
+
+    def _toggle_loop(self) -> None:
+        if self._timeline is None or not self._timeline.frames:
+            return
+        if self._timeline.loop is not None:
+            self._timeline.clear_loop()
+            self._loop_btn.setText("Set Loop")
+            return
+        try:
+            self._timeline.set_loop(self._loop_start.value(), self._loop_end.value())
+        except ValueError as exc:
+            QMessageBox.warning(self, "Invalid Loop", str(exc))
+            return
+        self._loop_btn.setText("Clear Loop")
+
+    def _add_marker(self) -> None:
+        if self._timeline is None or self._annotations is None:
+            return
+        note = self._marker_edit.text().strip()
+        if not note:
+            return
+        frame = self._timeline.current()
+        self._annotations.add(TakeMarker(frame.frame_index, note))
+        self._annotations.save()
+        self._marker_edit.clear()
+        self._comparison_lbl.setText(
+            f"Saved {len(self._annotations.markers)} marker(s) in sidecar metadata; original take unchanged."
+        )
+
+    def _compare_take(self) -> None:
+        if self._timeline is None:
+            return
+        path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Compare Against Take",
+            self._settings.get_last_directory(),
+            "CPC Takes (*.cpc *.partial);;All Files (*)",
+        )
+        if not path:
+            return
+        try:
+            other = read_capture(Path(path))
+        except (ValueError, RuntimeError, OSError, KeyError) as exc:
+            QMessageBox.warning(self, "Comparison Error", str(exc))
+            return
+        current = self._timeline.capture
+        current_tracked = sum(1 for frame in current.frames if frame.tracked)
+        other_tracked = sum(1 for frame in other.frames if frame.tracked)
+        current_rate = current_tracked / current.frame_count if current.frame_count else 0.0
+        other_rate = other_tracked / other.frame_count if other.frame_count else 0.0
+        self._comparison_lbl.setText(
+            f"A/B: current {current.frame_count} frames / {current.duration_s:.2f}s / "
+            f"{current_rate:.0%} tracked; {Path(path).name} {other.frame_count} frames / "
+            f"{other.duration_s:.2f}s / {other_rate:.0%} tracked."
+        )
 
     def _copy_path(self) -> None:
         if self._current_take_path:

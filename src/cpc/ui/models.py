@@ -370,10 +370,11 @@ class ModelRegistry(QObject):
 
     def register_custom_path(self, file_path: Path | str) -> ModelEntry:
         """Register or associate an existing custom model file path without requiring active model validation."""
-        path = Path(file_path)
+        path = Path(file_path).resolve()
         mid = f"custom:{path.stem}"
-        if mid in self._models:
-            return self._models[mid]
+        existing = self._models.get(mid)
+        if existing is not None and existing.custom_path == path:
+            return existing
 
         entry = ModelEntry(
             model_id=mid,

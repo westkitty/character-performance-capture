@@ -153,3 +153,35 @@ def test_derive_rig_worker_error(qapp, tmp_path):
 
     assert len(errors) == 1
     assert "Failed to derive" in errors[0]
+
+
+def test_session_worker_threaded_pipeline_mode(qapp, tmp_path):
+    vid_path = tmp_path / "threaded_dummy.mp4"
+    fourcc = cv2.VideoWriter_fourcc(*"mp4v")
+    out = cv2.VideoWriter(str(vid_path), fourcc, 30.0, (160, 120))
+    for i in range(12):
+        frame = np.full((120, 160, 3), i, dtype=np.uint8)
+        out.write(frame)
+    out.release()
+
+    cfg = SessionConfig(
+        source_type="video",
+        video_path=vid_path,
+        tracker_type="null",
+        renderer_type="passthrough",
+        performance_pipeline_mode="threaded",
+        pipeline_queue_size=2,
+        frames=8,
+    )
+    worker = SessionWorker(cfg)
+    telemetry = []
+    worker.telemetry_updated.connect(telemetry.append)
+    worker.start()
+    assert worker.wait(5000)
+    qapp.processEvents()
+    assert telemetry
+    assert telemetry[-1]["pipeline_mode"] == "threaded"
+    assert telemetry[-1]["canonical_processed_frames"] == 8
+    assert telemetry[-1]["queue_depth"] <= 2
+    assert telemetry[-1]["tracker_latency_ms"] >= 0
+    assert telemetry[-1]["render_latency_ms"] >= 0

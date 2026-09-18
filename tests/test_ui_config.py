@@ -136,3 +136,17 @@ def test_builders_from_config(tmp_path):
     cfg_rnd = SessionConfig(renderer_type="passthrough")
     rnd = build_renderer_from_config(cfg_rnd)
     assert isinstance(rnd, PassthroughRenderer)
+
+
+def test_session_config_performance_runtime_validation():
+    cfg = SessionConfig(
+        performance_pipeline_mode="threaded",
+        pipeline_queue_size=3,
+        runtime_loopback_port=8765,
+    )
+    assert cfg.validate() == []
+    cfg.performance_pipeline_mode = "nonsense"
+    assert any("performance pipeline mode" in e for e in cfg.validate())
+    cfg.performance_pipeline_mode = "serial"
+    cfg.pipeline_queue_size = 0
+    assert any("queue size" in e.lower() for e in cfg.validate())

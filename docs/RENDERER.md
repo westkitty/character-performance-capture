@@ -89,5 +89,4 @@ renders at 512×640. Measured on an Apple M1 (CPU, `mediapipe` 0.10.35):
 | rig-warp renderer | ~30 | ~34 |
 | full pipeline (serial) | ~21 | ~47 |
 
-Tracker and renderer run serially today; overlapping them on two threads is the
-obvious next step if a higher live frame-rate is needed.
+Serial mode remains the compatibility default. Studio can also use the bounded threaded performance pipeline, which overlaps frame acquisition with ordered tracker/renderer work without changing renderer semantics or `.cpc` ordering. The renderer exposes `recenter()` so the next valid tracked frame becomes the new performer-relative neutral reference.
